@@ -315,18 +315,3 @@ static inline void i2c_writew(u16 value, struct mt_i2c *i2c, u16 offset)
 {
 	writew(value, i2c->base + offset);
 }
-
-void ccu_i2c_dump_errr(void)
-{
-	struct i2c_client *pClient = NULL;
-	struct mt_i2c *i2c;
-
-	LOG_DBG_MUST("CCU Dump I2C reg\n");
-
-	pClient = getCcuI2cClient();
-	if (pClient == NULL) {
-		LOG_ERR("i2c_client is null\n");
-		return;
-	}
-	i2c = i2c_get_adapdata(pClient->adapter);
-}
