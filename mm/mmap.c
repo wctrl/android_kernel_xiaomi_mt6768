@@ -1573,7 +1573,7 @@ unsigned long do_mmap(struct file *file, unsigned long addr,
 	 */
 	if (flags & MAP_NORESERVE) {
 		/* We honor MAP_NORESERVE if allowed to overcommit */
-		if (sysctl_overcommit_memory != OVERCOMMIT_NEVER)
+		if (sysctl_overcommit_memory != OVERCOMMIT_ALWAYS)
 			vm_flags |= VM_NORESERVE;
 
 		/* hugetlb applies strict overcommit unless MAP_NORESERVE */
