@@ -422,7 +422,7 @@ static void gf_irq_gpio_cfg(struct gf_device *gf_dev)
 	node = of_find_compatible_node(NULL, NULL, "mediatek,goodix-fp");
 	if (node) {
 		gf_dev->irq_num = irq_of_parse_and_map(node, 0);
-		gf_debug(INFO_LOG, "%s, gf_irq = %d\n", __func__, gf_dev->irq_num);
+		gf_debug(DEBUG_LOG, "%s, gf_irq = %d\n", __func__, gf_dev->irq_num);
 		gf_dev->irq = gf_dev->irq_num;
 	} else
 		gf_debug(ERR_LOG, "%s can't find compatible node\n", __func__);
@@ -485,7 +485,7 @@ static void gf_netlink_send(struct gf_device *gf_dev, const int command)
 	struct sk_buff *skb = NULL;
 	int ret;
 
-	gf_debug(INFO_LOG, "[%s] : enter, send command %d\n", __func__, command);
+	gf_debug(DEBUG_LOG, "[%s] : enter, send command %d\n", __func__, command);
 	if (NULL == gf_dev->nl_sk) {
 		gf_debug(ERR_LOG, "[%s] : invalid socket\n", __func__);
 		return;
@@ -520,7 +520,7 @@ static void gf_netlink_send(struct gf_device *gf_dev, const int command)
 		return;
 	}
 
-	gf_debug(INFO_LOG, "[%s] : send done, data length is %d\n", __func__, ret);
+	gf_debug(DEBUG_LOG, "[%s] : send done, data length is %d\n", __func__, ret);
 }
 
 static void gf_netlink_recv(struct sk_buff *__skb)
@@ -529,7 +529,7 @@ static void gf_netlink_recv(struct sk_buff *__skb)
 	struct nlmsghdr *nlh = NULL;
 	char str[128];
 
-	gf_debug(INFO_LOG, "[%s] : enter \n", __func__);
+	gf_debug(DEBUG_LOG, "[%s] : enter \n", __func__);
 
 	skb = skb_get(__skb);
 	if (skb == NULL) {
@@ -542,7 +542,7 @@ static void gf_netlink_recv(struct sk_buff *__skb)
 		nlh = nlmsg_hdr(skb);
 		memcpy(str, NLMSG_DATA(nlh), sizeof(str));
 		pid = nlh->nlmsg_pid;
-		gf_debug(INFO_LOG, "[%s] : pid: %d, msg: %s\n", __func__, pid, str);
+		gf_debug(DEBUG_LOG, "[%s] : pid: %d, msg: %s\n", __func__, pid, str);
 
 	} else {
 		gf_debug(ERR_LOG, "[%s] : not enough data length\n", __func__);
@@ -564,7 +564,7 @@ static int gf_netlink_init(struct gf_device *gf_dev)
 		return -1;
 	}
 
-	gf_debug(INFO_LOG, "[%s] : netlink create success\n", __func__);
+	gf_debug(DEBUG_LOG, "[%s] : netlink create success\n", __func__);
 	return 0;
 }
 
@@ -589,7 +589,7 @@ static void gf_early_suspend(struct early_suspend *handler)
 	struct gf_device *gf_dev = NULL;
 
 	gf_dev = container_of(handler, struct gf_device, early_suspend);
-	gf_debug(INFO_LOG, "[%s] enter\n", __func__);
+	gf_debug(DEBUG_LOG, "[%s] enter\n", __func__);
 
 	gf_netlink_send(gf_dev, GF_NETLINK_SCREEN_OFF);
 }
@@ -599,7 +599,7 @@ static void gf_late_resume(struct early_suspend *handler)
 	struct gf_device *gf_dev = NULL;
 
 	gf_dev = container_of(handler, struct gf_device, early_suspend);
-	gf_debug(INFO_LOG, "[%s] enter\n", __func__);
+	gf_debug(DEBUG_LOG, "[%s] enter\n", __func__);
 
 	gf_netlink_send(gf_dev, GF_NETLINK_SCREEN_ON);
 }
@@ -621,21 +621,21 @@ static int gf_fb_notifier_callback(struct notifier_block *self,
 	gf_dev = container_of(self, struct gf_device, notifier);
 	blank = *(int *)evdata->data;
 
-	gf_debug(INFO_LOG, "[%s] : enter, blank=0x%x\n", __func__, blank);
+	gf_debug(DEBUG_LOG, "[%s] : enter, blank=0x%x\n", __func__, blank);
 
 	switch (blank) {
 	case FB_BLANK_UNBLANK:
-		gf_debug(INFO_LOG, "[%s] : lcd on notify\n", __func__);
+		gf_debug(DEBUG_LOG, "[%s] : lcd on notify\n", __func__);
 		gf_netlink_send(gf_dev, GF_NETLINK_SCREEN_ON);
 		break;
 
 	case FB_BLANK_POWERDOWN:
-		gf_debug(INFO_LOG, "[%s] : lcd off notify\n", __func__);
+		gf_debug(DEBUG_LOG, "[%s] : lcd off notify\n", __func__);
 		gf_netlink_send(gf_dev, GF_NETLINK_SCREEN_OFF);
 		break;
 
 	default:
-		gf_debug(INFO_LOG, "[%s] : other notifier, ignore\n", __func__);
+		gf_debug(DEBUG_LOG, "[%s] : other notifier, ignore\n", __func__);
 		break;
 	}
 	FUNC_EXIT();
@@ -698,7 +698,7 @@ static ssize_t gf_read(struct file *filp, char __user *buf, size_t count, loff_t
 				checksum, ((*(transfer_buf + count + 8) << 8) | *(transfer_buf + count + 9)));
 		retval = 0;
 	} else {
-		gf_debug(INFO_LOG, "%s: checksum check passed[0x%x], copy_to_user\n", __func__, checksum);
+		gf_debug(DEBUG_LOG, "%s: checksum check passed[0x%x], copy_to_user\n", __func__, checksum);
 		if (copy_to_user(buf, transfer_buf + 8, count)) {
 			gf_debug(ERR_LOG, "%s: Failed to copy gf_ioc_transfer from kernel to user\n", __func__);
 			retval = -EFAULT;
@@ -786,8 +786,8 @@ static long gf_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 
 	switch (cmd) {
 	case GF_IOC_INIT:
-		gf_debug(INFO_LOG, "%s: GF_IOC_INIT gf init======\n", __func__);
-		gf_debug(INFO_LOG, "%s: Linux Version %s\n", __func__, GF_LINUX_VERSION);
+		gf_debug(DEBUG_LOG, "%s: GF_IOC_INIT gf init======\n", __func__);
+		gf_debug(DEBUG_LOG, "%s: Linux Version %s\n", __func__, GF_LINUX_VERSION);
 
 		if (copy_to_user((void __user *)arg, (void *)&netlink_route, sizeof(u8))) {
 			retval = -EFAULT;
@@ -795,14 +795,14 @@ static long gf_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		}
 
 		if (gf_dev->system_status) {
-			gf_debug(INFO_LOG, "%s: system re-started======\n", __func__);
+			gf_debug(DEBUG_LOG, "%s: system re-started======\n", __func__);
 			break;
 		}
 		gf_irq_gpio_cfg(gf_dev);
 		retval = request_threaded_irq(gf_dev->irq, NULL, gf_irq,
 				IRQF_TRIGGER_RISING | IRQF_ONESHOT, "goodix_fp_irq", gf_dev);
 		if (!retval)
-			gf_debug(INFO_LOG, "%s irq thread request success!\n", __func__);
+			gf_debug(DEBUG_LOG, "%s irq thread request success!\n", __func__);
 		else
 			gf_debug(ERR_LOG, "%s irq thread request failed, retval=%d\n", __func__, retval);
 
@@ -810,7 +810,7 @@ static long gf_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		gf_disable_irq(gf_dev);
 
 #if defined(CONFIG_HAS_EARLYSUSPEND)
-		gf_debug(INFO_LOG, "[%s] : register_early_suspend\n", __func__);
+		gf_debug(DEBUG_LOG, "[%s] : register_early_suspend\n", __func__);
 		gf_dev->early_suspend.level = (EARLY_SUSPEND_LEVEL_DISABLE_FB - 1);
 		gf_dev->early_suspend.suspend = gf_early_suspend,
 		gf_dev->early_suspend.resume = gf_late_resume,
@@ -824,7 +824,7 @@ static long gf_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		gf_dev->sig_count = 0;
 		gf_dev->system_status = 1;
 
-		gf_debug(INFO_LOG, "%s: gf init finished======\n", __func__);
+		gf_debug(DEBUG_LOG, "%s: gf init finished======\n", __func__);
 		break;
 
 	case GF_IOC_CHIP_INFO:
@@ -834,13 +834,13 @@ static long gf_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		}
 		g_vendor_id = info.vendor_id;
 
-		gf_debug(INFO_LOG, "%s: vendor_id 0x%x\n", __func__, g_vendor_id);
-		gf_debug(INFO_LOG, "%s: mode 0x%x\n", __func__, info.mode);
-		gf_debug(INFO_LOG, "%s: operation 0x%x\n", __func__, info.operation);
+		gf_debug(DEBUG_LOG, "%s: vendor_id 0x%x\n", __func__, g_vendor_id);
+		gf_debug(DEBUG_LOG, "%s: mode 0x%x\n", __func__, info.mode);
+		gf_debug(DEBUG_LOG, "%s: operation 0x%x\n", __func__, info.operation);
 		break;
 
 	case GF_IOC_EXIT:
-		gf_debug(INFO_LOG, "%s: GF_IOC_EXIT ======\n", __func__);
+		gf_debug(DEBUG_LOG, "%s: GF_IOC_EXIT ======\n", __func__);
 		gf_disable_irq(gf_dev);
 		if (gf_dev->irq) {
 			free_irq(gf_dev->irq, gf_dev);
@@ -856,7 +856,7 @@ static long gf_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 #endif
 
 		gf_dev->system_status = 0;
-		gf_debug(INFO_LOG, "%s: gf exit finished ======\n", __func__);
+		gf_debug(DEBUG_LOG, "%s: gf exit finished ======\n", __func__);
 		break;
 
 	case GF_IOC_RESET:
@@ -865,12 +865,12 @@ static long gf_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		break;
 
 	case GF_IOC_ENABLE_IRQ:
-		gf_debug(INFO_LOG, "%s: GF_IOC_ENABLE_IRQ ======\n", __func__);
+		gf_debug(DEBUG_LOG, "%s: GF_IOC_ENABLE_IRQ ======\n", __func__);
 		gf_enable_irq(gf_dev);
 		break;
 
 	case GF_IOC_DISABLE_IRQ:
-		gf_debug(INFO_LOG, "%s: GF_IOC_DISABLE_IRQ ======\n", __func__);
+		gf_debug(DEBUG_LOG, "%s: GF_IOC_DISABLE_IRQ ======\n", __func__);
 		gf_disable_irq(gf_dev);
 		break;
 
@@ -885,12 +885,12 @@ static long gf_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		break;
 
 	case GF_IOC_ENABLE_POWER:
-		gf_debug(INFO_LOG, "%s: GF_IOC_ENABLE_POWER ======\n", __func__);
+		gf_debug(DEBUG_LOG, "%s: GF_IOC_ENABLE_POWER ======\n", __func__);
 		gf_hw_power_enable(gf_dev, 1);
 		break;
 
 	case GF_IOC_DISABLE_POWER:
-		gf_debug(INFO_LOG, "%s: GF_IOC_DISABLE_POWER ======\n", __func__);
+		gf_debug(DEBUG_LOG, "%s: GF_IOC_DISABLE_POWER ======\n", __func__);
 		gf_hw_power_enable(gf_dev, 0);
 		break;
 
@@ -911,7 +911,7 @@ static long gf_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 			/* add special key define */
 			key_input = gf_key.key;
 		}
-		gf_debug(INFO_LOG, "%s: received key event[%d], key=%d, value=%d\n",
+		gf_debug(DEBUG_LOG, "%s: received key event[%d], key=%d, value=%d\n",
 				__func__, key_input, gf_key.key, gf_key.value);
 
 		if ((GF_KEY_POWER == gf_key.key || GF_KEY_CAMERA == gf_key.key) && (gf_key.value == 1)) {
@@ -983,7 +983,7 @@ static long gf_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 			break;
 
 		default:
-			gf_debug(INFO_LOG, "%s: not support nav event nav_event: %d ======\n", __func__, nav_event);
+			gf_debug(DEBUG_LOG, "%s: not support nav event nav_event: %d ======\n", __func__, nav_event);
 			break;
 		}
 
@@ -996,11 +996,11 @@ static long gf_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		break;
 
 	case GF_IOC_ENTER_SLEEP_MODE:
-		gf_debug(INFO_LOG, "%s: GF_IOC_ENTER_SLEEP_MODE ======\n", __func__);
+		gf_debug(DEBUG_LOG, "%s: GF_IOC_ENTER_SLEEP_MODE ======\n", __func__);
 		break;
 
 	case GF_IOC_GET_FW_INFO:
-		gf_debug(INFO_LOG, "%s: GF_IOC_GET_FW_INFO ======\n", __func__);
+		gf_debug(DEBUG_LOG, "%s: GF_IOC_GET_FW_INFO ======\n", __func__);
 		buf = gf_dev->need_update;
 
 		gf_debug(DEBUG_LOG, "%s: firmware info  0x%x\n", __func__, buf);
@@ -1011,7 +1011,7 @@ static long gf_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 
 		break;
 	case GF_IOC_REMOVE:
-		gf_debug(INFO_LOG, "%s: GF_IOC_REMOVE ======\n", __func__);
+		gf_debug(DEBUG_LOG, "%s: GF_IOC_REMOVE ======\n", __func__);
 
 		gf_netlink_destroy(gf_dev);
 
@@ -1138,7 +1138,7 @@ static unsigned int gf_poll(struct file *filp, struct poll_table_struct *wait)
 static ssize_t gf_debug_show(struct device *dev,
 			struct device_attribute *attr, char *buf)
 {
-	//gf_debug(INFO_LOG, "%s: Show debug_level = 0x%x\n", __func__, g_debug_level);
+	//gf_debug(DEBUG_LOG, "%s: Show debug_level = 0x%x\n", __func__, g_debug_level);
 	return sprintf(buf, "vendor id 0x%x\n", g_vendor_id);
 }
 
@@ -1161,7 +1161,7 @@ extern int mdss_prim_panel_fb_unblank(int timeout);
 static void unblank_work(struct work_struct *work)
 {
 	printk("unblank_work gf unblank start\n");
-	gf_debug(INFO_LOG, "entry %s line %d \n", __func__, __LINE__);
+	gf_debug(DEBUG_LOG, "entry %s line %d \n", __func__, __LINE__);
 	gf_fingerprint_vcorefs_hold();
 	mdss_prim_panel_fb_unblank(200);
 	gf_fingerprint_vcorefs_release();
@@ -1177,7 +1177,7 @@ static void freq_release(struct work_struct *work)
 		freq_to_set[i].max = -1;
 	}
 	if (atomic_read(&boosted) == 1) {
-		gf_debug(INFO_LOG, "%s  release freq lock\n", __func__);
+		gf_debug(DEBUG_LOG, "%s  release freq lock\n", __func__);
 		update_userlimit_cpu_freq(CPU_KIR_FINGERPRINT, cluster_num,
 					freq_to_set);
 		atomic_dec(&boosted);
@@ -1186,7 +1186,7 @@ static void freq_release(struct work_struct *work)
 
 static void freq_release_timer(unsigned long arg)
 {
-	gf_debug(INFO_LOG, "entry %s line %d \n", __func__, __LINE__);
+	gf_debug(DEBUG_LOG, "entry %s line %d \n", __func__, __LINE__);
 	schedule_work(&fp_freq_work);
 }
 
@@ -1205,7 +1205,7 @@ static int freq_hold(int sec)
 	}
 	if (atomic_read(&boosted) == 0) {
 		printk("%s: fingerprint down\n", __func__);
-		gf_debug(INFO_LOG, "%s for %d * 500 msec \n", __func__, sec);
+		gf_debug(DEBUG_LOG, "%s for %d * 500 msec \n", __func__, sec);
 		update_userlimit_cpu_freq(CPU_KIR_FINGERPRINT, cluster_num,
 					freq_to_set);
 		atomic_inc(&boosted);
@@ -1222,19 +1222,19 @@ static ssize_t performance_store(struct device *dev,
 {
 	if (!strncmp(buf, "1", count)) {
 			printk("%s: fingerprint down\n", __func__);
-			gf_debug(INFO_LOG, "finger down in authentication/enroll\n");
+			gf_debug(DEBUG_LOG, "finger down in authentication/enroll\n");
 			freq_hold(1);
 
 	} else if (!strncmp(buf, "0", 1)) {
-			gf_debug(INFO_LOG, "finger up in authentication/enroll\n");
+			gf_debug(DEBUG_LOG, "finger up in authentication/enroll\n");
 	} else {
 			int timeout;
 			if (kstrtoint(buf, 10, &timeout) == 0) {
 				freq_hold(timeout);
-				gf_debug(INFO_LOG, "hold performance lock for %d * 500ms\n", timeout);
+				gf_debug(DEBUG_LOG, "hold performance lock for %d * 500ms\n", timeout);
 		} else {
 				freq_hold(1);
-				gf_debug(INFO_LOG, "hold performance lock for 500ms\n");
+				gf_debug(DEBUG_LOG, "hold performance lock for 500ms\n");
 		}
 	}
 	return count;
@@ -1254,21 +1254,21 @@ static ssize_t gf_debug_store(struct device *dev,
 	ms = spi_master_get_devdata(gf_dev->spi->master);
 
 	if (!strncmp(buf, "-8", 2)) {
-		gf_debug(INFO_LOG, "%s: parameter is -8, enable spi clock test===============\n", __func__);
+		gf_debug(DEBUG_LOG, "%s: parameter is -8, enable spi clock test===============\n", __func__);
 		mt_spi_enable_master_clk(gf_dev->spi);
 
 	} else if (!strncmp(buf, "-9", 2)) {
-		gf_debug(INFO_LOG, "%s: parameter is -9, disable spi clock test===============\n", __func__);
+		gf_debug(DEBUG_LOG, "%s: parameter is -9, disable spi clock test===============\n", __func__);
 		mt_spi_disable_master_clk(gf_dev->spi);
 
 	} else if (!strncmp(buf, "-10", 3)) {
-		gf_debug(INFO_LOG, "%s: parameter is -10, gf init start===============\n", __func__);
+		gf_debug(DEBUG_LOG, "%s: parameter is -10, gf init start===============\n", __func__);
 
 		gf_irq_gpio_cfg(gf_dev);
 		retval = request_threaded_irq(gf_dev->irq, NULL, gf_irq,
 				IRQF_TRIGGER_RISING | IRQF_ONESHOT, dev_name(&(gf_dev->spi->dev)), gf_dev);
 		if (!retval)
-			gf_debug(INFO_LOG, "%s irq thread request success!\n", __func__);
+			gf_debug(DEBUG_LOG, "%s irq thread request success!\n", __func__);
 		else
 			gf_debug(ERR_LOG, "%s irq thread request failed, retval=%d\n", __func__, retval);
 
@@ -1276,7 +1276,7 @@ static ssize_t gf_debug_store(struct device *dev,
 		gf_disable_irq(gf_dev);
 
 #if defined(CONFIG_HAS_EARLYSUSPEND)
-		gf_debug(INFO_LOG, "[%s] : register_early_suspend\n", __func__);
+		gf_debug(DEBUG_LOG, "[%s] : register_early_suspend\n", __func__);
 		gf_dev->early_suspend.level = (EARLY_SUSPEND_LEVEL_DISABLE_FB - 1);
 		gf_dev->early_suspend.suspend = gf_early_suspend,
 		gf_dev->early_suspend.resume = gf_late_resume,
@@ -1289,30 +1289,30 @@ static ssize_t gf_debug_store(struct device *dev,
 
 		gf_dev->sig_count = 0;
 
-		gf_debug(INFO_LOG, "%s: gf init finished======\n", __func__);
+		gf_debug(DEBUG_LOG, "%s: gf init finished======\n", __func__);
 
 	} else if (!strncmp(buf, "-11", 3)) {
-		gf_debug(INFO_LOG, "%s: parameter is -11, enable irq===============\n", __func__);
+		gf_debug(DEBUG_LOG, "%s: parameter is -11, enable irq===============\n", __func__);
 		gf_enable_irq(gf_dev);
 
 	} else if (!strncmp(buf, "-12", 3)) {
-		gf_debug(INFO_LOG, "%s: parameter is -12, GPIO test===============\n", __func__);
+		gf_debug(DEBUG_LOG, "%s: parameter is -12, GPIO test===============\n", __func__);
 		gf_reset_gpio_cfg(gf_dev);
 
 #ifdef CONFIG_OF
 		if (flag == 0) {
 			pinctrl_select_state(gf_dev->pinctrl_gpios, gf_dev->pins_miso_pulllow);
-			gf_debug(INFO_LOG, "%s: set miso PIN to low\n", __func__);
+			gf_debug(DEBUG_LOG, "%s: set miso PIN to low\n", __func__);
 			flag = 1;
 		} else {
 			pinctrl_select_state(gf_dev->pinctrl_gpios, gf_dev->pins_miso_pullhigh);
-			gf_debug(INFO_LOG, "%s: set miso PIN to high\n", __func__);
+			gf_debug(DEBUG_LOG, "%s: set miso PIN to high\n", __func__);
 			flag = 0;
 		}
 #endif
 
 	} else if (!strncmp(buf, "-13", 3)) {
-		gf_debug(INFO_LOG, "%s: parameter is -13, Vendor ID test --> 0x%x\n", __func__, g_vendor_id);
+		gf_debug(DEBUG_LOG, "%s: parameter is -13, Vendor ID test --> 0x%x\n", __func__, g_vendor_id);
 		gf_spi_read_bytes(gf_dev, 0x0000, 4, rx_test);
 		printk("%s rx_test chip id:0x%x 0x%x 0x%x 0x%x \n", __func__, rx_test[0], rx_test[1], rx_test[2], rx_test[3]);
 	} else {
@@ -1334,7 +1334,7 @@ static int gf_open(struct inode *inode, struct file *filp)
 	mutex_lock(&device_list_lock);
 	list_for_each_entry(gf_dev, &device_list, device_entry) {
 		if (gf_dev->devno == inode->i_rdev) {
-			gf_debug(INFO_LOG, "%s, Found\n", __func__);
+			gf_debug(DEBUG_LOG, "%s, Found\n", __func__);
 			status = 0;
 			break;
 		}
@@ -1344,7 +1344,7 @@ static int gf_open(struct inode *inode, struct file *filp)
 	if (status == 0) {
 		filp->private_data = gf_dev;
 		nonseekable_open(inode, filp);
-		gf_debug(INFO_LOG, "%s, Success to open device. irq = %d\n", __func__, gf_dev->irq);
+		gf_debug(DEBUG_LOG, "%s, Success to open device. irq = %d\n", __func__, gf_dev->irq);
 	} else {
 		gf_debug(ERR_LOG, "%s, No device for minor %d\n", __func__, iminor(inode));
 	}
@@ -1718,18 +1718,18 @@ static int gf_check_9p_chip(struct gf_device *gf_dev)
 	do {
 		/* read data start from offset 4 */
 		gf_spi_read_bytes_ree(gf_dev, 0x4220, 4, tmp_buf);
-		gf_debug(INFO_LOG, "%s, 9p chip version is 0x%x, 0x%x, 0x%x, 0x%x\n", __func__,
+		gf_debug(DEBUG_LOG, "%s, 9p chip version is 0x%x, 0x%x, 0x%x, 0x%x\n", __func__,
 				tmp_buf[0], tmp_buf[1], tmp_buf[2], tmp_buf[3]);
 
 		time_out++;
 		/* 9P MP chip version is 0x00900802*/
 		if ((0x00 == tmp_buf[3]) && (0x90 == tmp_buf[2]) && (0x08 == tmp_buf[1])) {
-			gf_debug(INFO_LOG, "%s, 9p chip version check pass, time_out=%d\n", __func__, time_out);
+			gf_debug(DEBUG_LOG, "%s, 9p chip version check pass, time_out=%d\n", __func__, time_out);
 			return 0;
 		}
 	} while (time_out < 200);
 
-	gf_debug(INFO_LOG, "%s, 9p chip version read failed, time_out=%d\n", __func__, time_out);
+	gf_debug(DEBUG_LOG, "%s, 9p chip version read failed, time_out=%d\n", __func__, time_out);
 	return -1;
 }
 
@@ -1753,7 +1753,7 @@ static int gf_fw_upgrade_prepare(struct gf_device *gf_dev)
 		return -1;
 	}
 
-	gf_debug(INFO_LOG, "%s, fw upgrade prepare finished\n", __func__);
+	gf_debug(DEBUG_LOG, "%s, fw upgrade prepare finished\n", __func__);
 	return 0;
 }
 
@@ -1779,8 +1779,8 @@ static int gf_init_flash_fw(struct gf_device *gf_dev)
 	memset(tmp_buf, 0x00, 11);
 	gf_spi_read_bytes_ree(gf_dev, 0x8000, 10, tmp_buf);
 	tmp_buf[6] = '\0';
-	gf_debug(INFO_LOG, "[%s], the product id is %s.\n", __func__, &tmp_buf[0]);
-	gf_debug(INFO_LOG, "[%s], the fw version is 0x%x, 0x%x, 0x%x.\n", __func__,
+	gf_debug(DEBUG_LOG, "[%s], the product id is %s.\n", __func__, &tmp_buf[0]);
+	gf_debug(DEBUG_LOG, "[%s], the fw version is 0x%x, 0x%x, 0x%x.\n", __func__,
 		tmp_buf[7], tmp_buf[8], tmp_buf[9]);
 
 	if ((memcmp(&tmp_buf[0], "GFx16M", 6) != 0) && (memcmp(&tmp_buf[0], "GFx18M", 6) != 0)) {
@@ -1875,7 +1875,7 @@ int gf_spi_read_bytes(struct gf_device *gf_dev, u16 addr, u32 data_len, u8 *rx_b
 
 #ifdef CONFIG_SPI_MT65XX
 	xfer[0].speed_hz = gf_spi_speed;
-	gf_debug(INFO_LOG, "%s %d, now spi-clock:%d\n",
+	gf_debug(DEBUG_LOG, "%s %d, now spi-clock:%d\n",
 		__func__, __LINE__, xfer[0].speed_hz);
 #endif
 
@@ -1999,13 +1999,13 @@ static int gf_probe(struct spi_device *spi)
 	/* begin modify for unlock speed */
 	pm_qos_add_request(&gf_fingerprint_ddr_req, PM_QOS_DDR_OPP, PM_QOS_DDR_OPP_DEFAULT_VALUE);
 	cluster_num = arch_get_nr_clusters();
-	gf_debug(INFO_LOG, "cluster_num = %d \n", cluster_num);
+	gf_debug(DEBUG_LOG, "cluster_num = %d \n", cluster_num);
 
 	freq_to_set =
 		kcalloc(cluster_num, sizeof(struct ppm_limit_data), GFP_KERNEL);
 
 	if (!freq_to_set) {
-		gf_debug(INFO_LOG, "kcalloc freq_to_set fail\n");
+		gf_debug(DEBUG_LOG, "kcalloc freq_to_set fail\n");
 		goto err_buf;
 	}
 	/* end modify for unlock speed */
@@ -2031,7 +2031,7 @@ static int gf_probe(struct spi_device *spi)
 	gf_dev->need_update      = 0;
 
 	/*setup gf configurations.*/
-	gf_debug(INFO_LOG, "%s, Setting gf device configuration==========\n", __func__);
+	gf_debug(DEBUG_LOG, "%s, Setting gf device configuration==========\n", __func__);
 
 	/* Initialize the driver data */
 	gf_dev->spi = spi;
@@ -2059,7 +2059,7 @@ static int gf_probe(struct spi_device *spi)
 
 	buck = regulator_get(NULL, "vldo28");
 	if (buck == NULL) {
-		gf_debug(INFO_LOG, "regulator_get fail");
+		gf_debug(DEBUG_LOG, "regulator_get fail");
 		goto err_freqbuff;
 	}
 	status = regulator_set_voltage(buck, 2800000, 2800000);
@@ -2093,7 +2093,7 @@ static int gf_probe(struct spi_device *spi)
 	gf_spi_clk_enable(gf_dev, 1);
 	pr_err("%s %d now enable spi clk Done", __func__, __LINE__);
 	/* check firmware Integrity */
-	//gf_debug(INFO_LOG, "%s, Sensor type : %s.\n", __func__, CONFIG_GOODIX_SENSOR_TYPE);
+	//gf_debug(DEBUG_LOG, "%s, Sensor type : %s.\n", __func__, CONFIG_GOODIX_SENSOR_TYPE);
 
 	/* begin modify for unlock speed */
 	/* init freq ppm data */
@@ -2104,7 +2104,7 @@ static int gf_probe(struct spi_device *spi)
 		status = -ENODEV;
 		goto err_buf;
 	} else {
-		gf_debug(INFO_LOG, "%s, Success create authen_fd node.\n",
+		gf_debug(DEBUG_LOG, "%s, Success create authen_fd node.\n",
 			 __func__);
 	}
 	/* end modify for unlock speed */
@@ -2189,7 +2189,7 @@ static int gf_probe(struct spi_device *spi)
 		gf_debug(ERR_LOG, "%s, Failed to alloc devno.\n", __func__);
 		goto err_devno;
 	} else {
-		gf_debug(INFO_LOG, "%s, major=%d, minor=%d\n", __func__, MAJOR(gf_dev->devno), MINOR(gf_dev->devno));
+		gf_debug(DEBUG_LOG, "%s, major=%d, minor=%d\n", __func__, MAJOR(gf_dev->devno), MINOR(gf_dev->devno));
 	}
 
 	/* create device */
@@ -2202,7 +2202,7 @@ static int gf_probe(struct spi_device *spi)
 		mutex_lock(&device_list_lock);
 		list_add(&gf_dev->device_entry, &device_list);
 		mutex_unlock(&device_list_lock);
-		gf_debug(INFO_LOG, "%s, device create success.\n", __func__);
+		gf_debug(DEBUG_LOG, "%s, device create success.\n", __func__);
 	}
 
 	/* create sysfs */
@@ -2212,7 +2212,7 @@ static int gf_probe(struct spi_device *spi)
 		status = -ENODEV;
 		goto err_sysfs;
 	} else {
-		gf_debug(INFO_LOG, "%s, Success create sysfs file.\n", __func__);
+		gf_debug(DEBUG_LOG, "%s, Success create sysfs file.\n", __func__);
 	}
 
 	/* cdev init and add */
@@ -2272,7 +2272,7 @@ static int gf_probe(struct spi_device *spi)
 
 	gf_dev->probe_finish = 1;
 	gf_dev->is_sleep_mode = 0;
-	gf_debug(INFO_LOG, "%s probe finished\n", __func__);
+	gf_debug(DEBUG_LOG, "%s probe finished\n", __func__);
 	pr_err("%s %d now disable spi clk API", __func__, __LINE__);
 	gf_spi_clk_enable(gf_dev, 0);
 
