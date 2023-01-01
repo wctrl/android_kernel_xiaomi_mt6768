@@ -62,9 +62,6 @@ static s32 cmdq_sec_append_metadata(
 	struct cmdq_sec_addr_meta *meta;
 	s32 idx, max, ret;
 
-	cmdq_log("pkt:%p type:%u base:%#llx offset:%#x size:%#x port:%#x",
-		pkt, type, base, offset, size, port);
-
 	ret = cmdq_sec_check_sec(pkt);
 	if (ret < 0)
 		return ret;
@@ -122,9 +119,6 @@ s32 cmdq_sec_pkt_set_data(struct cmdq_pkt *pkt, const u64 dapc_engine,
 	ret = cmdq_sec_check_sec(pkt);
 	if (ret < 0)
 		return ret;
-	cmdq_log(
-		"pkt:%p sec_data:%p dapc:%llu port_sec:%llu scen:%u",
-		pkt, pkt->sec_data, dapc_engine, port_sec_engine, scenario);
 
 	sec_data = (struct cmdq_sec_data *)pkt->sec_data;
 	sec_data->enginesNeedDAPC |= dapc_engine;
@@ -141,8 +135,6 @@ void cmdq_sec_pkt_set_mtee(struct cmdq_pkt *pkt, const bool enable)
 	struct cmdq_sec_data *sec_data =
 		(struct cmdq_sec_data *)pkt->sec_data;
 	sec_data->mtee = enable;
-	cmdq_msg("%s pkt:%p mtee:%d\n",
-		__func__, pkt, ((struct cmdq_sec_data *)pkt->sec_data)->mtee);
 }
 EXPORT_SYMBOL(cmdq_sec_pkt_set_mtee);
 

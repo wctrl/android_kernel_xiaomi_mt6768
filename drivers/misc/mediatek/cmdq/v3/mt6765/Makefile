@@ -25,7 +25,9 @@ endif
 # Enable MET
 ccflags-y += -DMET_USER_EVENT_SUPPORT
 
+ifeq ($(CONFIG_MTK_AEE_FEATURE),y)
 # Enable AEE
 ccflags-y += -DCMDQ_AEE_READY
+endif
 
 obj-y += cmdq_mdp.o
