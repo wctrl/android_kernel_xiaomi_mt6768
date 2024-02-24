@@ -124,3 +124,16 @@ all.config
 
 # fetched Android config fragments
 kernel/configs/android-*.cfg
+
+# AnyKernel3
+AnyKernel3/
+AnyKermel/
+
+# Build
+build.sh
+
+# Clang
+clang/
+
+# Out
+out/
