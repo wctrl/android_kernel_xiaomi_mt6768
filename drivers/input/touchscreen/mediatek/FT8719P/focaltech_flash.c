@@ -255,7 +255,6 @@ static int fts_dpram_write_pe(u32 saddr, const u8 *buf, u32 len, bool wpram)
 	}
 		cmd[4] = BYTE_OFF_8(packet_len);
 		cmd[5] = BYTE_OFF_0(packet_len);
-    }
 
 	for (j = 0; j < packet_len; j++) {
 		cmd[FTS_CMD_WRITE_LEN + j] = buf[offset + j];
