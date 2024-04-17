@@ -2443,6 +2443,7 @@ bool tcp_schedule_loss_probe(struct sock *sk, bool advancing_rto)
 	struct inet_connection_sock *icsk = inet_csk(sk);
 	struct tcp_sock *tp = tcp_sk(sk);
 	u32 timeout, timeout_us, rto_delta_us;
+	u32 timeout, rto_delta_us;
 	int early_retrans;
 
 	/* Don't do any loss probe on a Fast Open connection before 3WHS
