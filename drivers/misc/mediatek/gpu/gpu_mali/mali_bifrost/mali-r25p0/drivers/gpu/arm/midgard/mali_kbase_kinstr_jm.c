@@ -1,11 +1,12 @@
+// SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2019-2020 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2019-2021 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
  * Foundation, and any use by you of this program is subject to the terms
- * of such GNU licence.
+ * of such GNU license.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -16,8 +17,6 @@
  * along with this program; if not, you can access it online at
  * http://www.gnu.org/licenses/gpl-2.0.html.
  *
- * SPDX-License-Identifier: GPL-2.0
- *
  */
 
 /*
@@ -26,12 +25,12 @@
  */
 
 #include "mali_kbase_kinstr_jm.h"
-#include "mali_kbase_kinstr_jm_reader.h"
+#include <uapi/gpu/arm/midgard/mali_kbase_kinstr_jm_reader.h>
 
 #include "mali_kbase.h"
 #include "mali_kbase_linux.h"
 
-#include <mali_kbase_jm_rb.h>
+#include <backend/gpu/mali_kbase_jm_rb.h>
 
 #include <asm/barrier.h>
 #include <linux/anon_inodes.h>
@@ -48,9 +47,14 @@
 #include <linux/version.h>
 #include <linux/wait.h>
 
+/* Define static_assert().
+ *
+ * The macro was introduced in kernel 5.1. But older vendor kernels may define
+ * it too.
+ */
 #if KERNEL_VERSION(5, 1, 0) <= LINUX_VERSION_CODE
 #include <linux/build_bug.h>
-#else
+#elif !defined(static_assert)
 // Stringify the expression if no message is given.
 #define static_assert(e, ...)  __static_assert(e, #__VA_ARGS__, #e)
 #define __static_assert(e, msg, ...) _Static_assert(e, msg)
@@ -70,15 +74,9 @@ typedef unsigned int __poll_t;
 /* Allows us to perform ASM goto for the tracing
  * https://www.kernel.org/doc/Documentation/static-keys.txt
  */
-#if KERNEL_VERSION(4, 3, 0) <= LINUX_VERSION_CODE
 DEFINE_STATIC_KEY_FALSE(basep_kinstr_jm_reader_static_key);
-#else
-struct static_key basep_kinstr_jm_reader_static_key = STATIC_KEY_INIT_FALSE;
-#define static_branch_inc(key) static_key_slow_inc(key)
-#define static_branch_dec(key) static_key_slow_dec(key)
-#endif /* KERNEL_VERSION(4 ,3, 0) <= LINUX_VERSION_CODE */
 
-#define KBASE_KINSTR_JM_VERSION 1
+#define KBASE_KINSTR_JM_VERSION 2
 
 /**
  * struct kbase_kinstr_jm - The context for the kernel job manager atom tracing
@@ -106,6 +104,11 @@ struct kbase_kinstr_jm {
  *             KBASE_KINSTR_JM_ATOM_STATE_FLAG_* defines.
  * @reserved:  Reserved for future use.
  * @data:      Extra data for the state change. Active member depends on state.
+ * @data.start:      Extra data for the state change. Active member depends on
+ *                   state.
+ * @data.start.slot: Extra data for the state change. Active member depends on
+ *                   state.
+ * @data.padding:    Padding
  *
  * We can add new fields to the structure and old user code will gracefully
  * ignore the new fields.
@@ -206,9 +209,8 @@ struct reader_changes {
  */
 static inline bool reader_changes_is_valid_size(const size_t size)
 {
-	typedef struct reader_changes changes_t;
-	const size_t elem_size = sizeof(*((changes_t *)0)->data);
-	const size_t size_size = sizeof(((changes_t *)0)->size);
+	const size_t elem_size = sizeof(*((struct reader_changes *)0)->data);
+	const size_t size_size = sizeof(((struct reader_changes *)0)->size);
 	const size_t size_max = (1ull << (size_size * 8)) - 1;
 
 	return is_power_of_2(size) && /* Is a power of two */
@@ -832,7 +834,7 @@ void kbasep_kinstr_jm_atom_state(
 
 	switch (state) {
 	case KBASE_KINSTR_JM_READER_ATOM_STATE_START:
-		change.data.start.slot = katom->jobslot;
+		change.data.start.slot = katom->slot_nr;
 		break;
 	default:
 		break;

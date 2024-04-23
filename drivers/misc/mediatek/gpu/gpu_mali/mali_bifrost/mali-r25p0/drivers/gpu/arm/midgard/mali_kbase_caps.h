@@ -1,11 +1,12 @@
+/* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2020 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2020-2022 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
  * Foundation, and any use by you of this program is subject to the terms
- * of such GNU licence.
+ * of such GNU license.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -16,15 +17,10 @@
  * along with this program; if not, you can access it online at
  * http://www.gnu.org/licenses/gpl-2.0.html.
  *
- * SPDX-License-Identifier: GPL-2.0
- *
  */
 
-
 /**
- * @file mali_kbase_caps.h
- *
- * Driver Capability Queries.
+ * DOC: Driver Capability Queries.
  */
 
 #ifndef _KBASE_CAPS_H_
@@ -32,15 +28,24 @@
 
 #include <linux/types.h>
 
-typedef enum mali_kbase_cap {
+/**
+ * enum mali_kbase_cap - Enumeration for kbase capability
+ *
+ * @MALI_KBASE_CAP_SYSTEM_MONITOR: System Monitor
+ * @MALI_KBASE_CAP_JIT_PRESSURE_LIMIT: JIT Pressure limit
+ * @MALI_KBASE_CAP_MEM_GROW_ON_GPF: Memory grow on page fault
+ * @MALI_KBASE_CAP_MEM_PROTECTED: Protected memory
+ * @MALI_KBASE_NUM_CAPS: Delimiter
+ */
+enum mali_kbase_cap {
 	MALI_KBASE_CAP_SYSTEM_MONITOR = 0,
 	MALI_KBASE_CAP_JIT_PRESSURE_LIMIT,
 	MALI_KBASE_CAP_MEM_GROW_ON_GPF,
 	MALI_KBASE_CAP_MEM_PROTECTED,
 	MALI_KBASE_NUM_CAPS
-} mali_kbase_cap;
+};
 
-extern bool mali_kbase_supports_cap(unsigned long api_version, mali_kbase_cap cap);
+extern bool mali_kbase_supports_cap(unsigned long api_version, enum mali_kbase_cap cap);
 
 static inline bool mali_kbase_supports_system_monitor(unsigned long api_version)
 {
