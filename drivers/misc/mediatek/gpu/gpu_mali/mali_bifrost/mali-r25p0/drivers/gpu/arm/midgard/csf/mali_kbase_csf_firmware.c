@@ -21,6 +21,7 @@
 
 #include "mali_kbase.h"
 #include "mali_kbase_csf_firmware_cfg.h"
+#include "mali_kbase_csf_firmware_log.h"
 #include "mali_kbase_csf_trace_buffer.h"
 #include "mali_kbase_csf_timeout.h"
 #include "mali_kbase_mem.h"
@@ -76,6 +77,7 @@ module_param(fw_debug, bool, 0444);
 MODULE_PARM_DESC(fw_debug,
 	"Enables effective use of a debugger for debugging firmware code.");
 #endif
+
 
 #define FIRMWARE_HEADER_MAGIC    (0xC3F13A6Eul)
 #define FIRMWARE_HEADER_VERSION  (0ul)
@@ -525,6 +527,58 @@ static inline bool entry_find_large_page_to_reuse(
 	*pma = NULL;
 
 
+	/* If the section starts at 2MB aligned boundary,
+	 * then use 2MB page(s) for it.
+	 */
+	if (!(virtual_start & (SZ_2M - 1))) {
+		*num_pages_aligned =
+			round_up(*num_pages_aligned, NUM_4K_PAGES_IN_2MB_PAGE);
+		*is_small_page = false;
+		goto out;
+	}
+
+	/* If the section doesn't lie within the same 2MB aligned boundary,
+	 * then use 4KB pages as it would be complicated to use a 2MB page
+	 * for such section.
+	 */
+	if ((virtual_start & ~(SZ_2M - 1)) != (virtual_end & ~(SZ_2M - 1)))
+		goto out;
+
+	/* Find the nearest 2MB aligned section which comes before the current
+	 * section.
+	 */
+	list_for_each_entry(interface, &kbdev->csf.firmware_interfaces, node) {
+		const u32 virtual_diff = virtual_start - interface->virtual;
+
+		if (interface->virtual > virtual_end)
+			continue;
+
+		if (interface->virtual & (SZ_2M - 1))
+			continue;
+
+		if (virtual_diff < virtual_diff_min) {
+			target_interface = interface;
+			virtual_diff_min = virtual_diff;
+		}
+	}
+
+	if (target_interface) {
+		const u32 page_index = virtual_diff_min >> PAGE_SHIFT;
+
+		if (page_index >= target_interface->num_pages_aligned)
+			goto out;
+
+		if (target_interface->phys)
+			*phys = &target_interface->phys[page_index];
+
+		if (target_interface->pma)
+			*pma = &target_interface->pma[page_index / NUM_4K_PAGES_IN_2MB_PAGE];
+
+		*is_small_page = false;
+		reuse_large_page = true;
+	}
+
+out:
 	return reuse_large_page;
 }
 
@@ -1991,16 +2045,6 @@ int kbase_csf_firmware_early_init(struct kbase_device *kbdev)
 	kbdev->csf.fw_timeout_ms =
 		kbase_get_timeout_ms(kbdev, CSF_FIRMWARE_TIMEOUT);
 
-	kbdev->csf.gpu_idle_hysteresis_ms = FIRMWARE_IDLE_HYSTERESIS_TIME_MS;
-#ifdef KBASE_PM_RUNTIME
-	if (kbase_pm_gpu_sleep_allowed(kbdev))
-		kbdev->csf.gpu_idle_hysteresis_ms /=
-			FIRMWARE_IDLE_HYSTERESIS_GPU_SLEEP_SCALER;
-#endif
-	WARN_ON(!kbdev->csf.gpu_idle_hysteresis_ms);
-	kbdev->csf.gpu_idle_dur_count = convert_dur_to_idle_count(
-		kbdev, kbdev->csf.gpu_idle_hysteresis_ms);
-
 	kbdev->csf.mcu_core_pwroff_dur_us = DEFAULT_GLB_PWROFF_TIMEOUT_US;
 	kbdev->csf.mcu_core_pwroff_dur_count = convert_dur_to_core_pwroff_count(
 		kbdev, DEFAULT_GLB_PWROFF_TIMEOUT_US);
@@ -2020,7 +2064,21 @@ int kbase_csf_firmware_early_init(struct kbase_device *kbdev)
 	return 0;
 }
 
-int kbase_csf_firmware_init(struct kbase_device *kbdev)
+int kbase_csf_firmware_late_init(struct kbase_device *kbdev)
+{
+	kbdev->csf.gpu_idle_hysteresis_ms = FIRMWARE_IDLE_HYSTERESIS_TIME_MS;
+#ifdef KBASE_PM_RUNTIME
+	if (kbase_pm_gpu_sleep_allowed(kbdev))
+		kbdev->csf.gpu_idle_hysteresis_ms /= FIRMWARE_IDLE_HYSTERESIS_GPU_SLEEP_SCALER;
+#endif
+	WARN_ON(!kbdev->csf.gpu_idle_hysteresis_ms);
+	kbdev->csf.gpu_idle_dur_count =
+		convert_dur_to_idle_count(kbdev, kbdev->csf.gpu_idle_hysteresis_ms);
+
+	return 0;
+}
+
+int kbase_csf_firmware_load_init(struct kbase_device *kbdev)
 {
 	const struct firmware *firmware = NULL;
 	struct kbase_csf_mcu_fw *const mcu_fw = &kbdev->csf.fw;
@@ -2188,6 +2246,12 @@ int kbase_csf_firmware_init(struct kbase_device *kbdev)
 	if (ret != 0)
 		goto err_out;
 
+	ret = kbase_csf_firmware_log_init(kbdev);
+	if (ret != 0) {
+		dev_err(kbdev->dev, "Failed to initialize FW trace (err %d)", ret);
+		goto err_out;
+	}
+
 	/* Firmware loaded successfully, ret = 0 */
 	KBASE_KTRACE_ADD(kbdev, CSF_FIRMWARE_BOOT, NULL,
 			(((u64)version_hash) << 32) |
@@ -2195,11 +2259,11 @@ int kbase_csf_firmware_init(struct kbase_device *kbdev)
 	return 0;
 
 err_out:
-	kbase_csf_firmware_term(kbdev);
+	kbase_csf_firmware_unload_term(kbdev);
 	return ret;
 }
 
-void kbase_csf_firmware_term(struct kbase_device *kbdev)
+void kbase_csf_firmware_unload_term(struct kbase_device *kbdev)
 {
 	unsigned long flags;
 	int ret = 0;
@@ -2209,6 +2273,8 @@ void kbase_csf_firmware_term(struct kbase_device *kbdev)
 	ret = kbase_reset_gpu_wait(kbdev);
 
 	WARN(ret, "failed to wait for GPU reset");
+
+	kbase_csf_firmware_log_term(kbdev);
 
 	kbase_csf_firmware_cfg_term(kbdev);
 

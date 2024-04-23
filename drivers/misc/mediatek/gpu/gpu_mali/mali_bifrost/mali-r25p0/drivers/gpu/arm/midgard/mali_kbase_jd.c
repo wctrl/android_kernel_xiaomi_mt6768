@@ -215,7 +215,7 @@ static int kbase_jd_pre_external_resources(struct kbase_jd_atom *katom, const st
 		.dma_fence_resv_count = 0,
 		.dma_fence_excl_bitmap = NULL
 	};
-#if defined(CONFIG_SYNC) || defined(CONFIG_SYNC_FILE)
+#if IS_ENABLED(CONFIG_SYNC_FILE)
 	/*
 	 * When both dma-buf fence and Android native sync is enabled, we
 	 * disable dma-buf fence for contexts that are using Android native
@@ -223,9 +223,9 @@ static int kbase_jd_pre_external_resources(struct kbase_jd_atom *katom, const st
 	 */
 	const bool implicit_sync = !kbase_ctx_flag(katom->kctx,
 						   KCTX_NO_IMPLICIT_SYNC);
-#else /* CONFIG_SYNC || CONFIG_SYNC_FILE*/
+#else /* CONFIG_SYNC_FILE */
 	const bool implicit_sync = true;
-#endif /* CONFIG_SYNC || CONFIG_SYNC_FILE */
+#endif /* CONFIG_SYNC_FILE */
 #endif /* CONFIG_MALI_DMA_FENCE */
 	struct base_external_resource *input_extres;
 
@@ -1800,7 +1800,7 @@ int kbase_jd_init(struct kbase_context *kctx)
 		kctx->jctx.atoms[i].event_code = BASE_JD_EVENT_JOB_INVALID;
 		kctx->jctx.atoms[i].status = KBASE_JD_ATOM_STATE_UNUSED;
 
-#if defined(CONFIG_MALI_DMA_FENCE) || defined(CONFIG_SYNC_FILE)
+#if defined(CONFIG_MALI_DMA_FENCE) || IS_ENABLED(CONFIG_SYNC_FILE)
 		kctx->jctx.atoms[i].dma_fence.context =
 						dma_fence_context_alloc(1);
 		atomic_set(&kctx->jctx.atoms[i].dma_fence.seqno, 0);

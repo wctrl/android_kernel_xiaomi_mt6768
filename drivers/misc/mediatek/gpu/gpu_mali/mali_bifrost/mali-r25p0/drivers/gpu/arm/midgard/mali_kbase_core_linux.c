@@ -35,7 +35,7 @@
 #include "backend/gpu/mali_kbase_model_linux.h"
 #include <backend/gpu/mali_kbase_model_dummy.h>
 #endif /* CONFIG_MALI_NO_MALI */
-#include "mali_kbase_mem_profile_debugfs_buf_size.h"
+#include "uapi/gpu/arm/midgard/mali_kbase_mem_profile_debugfs_buf_size.h"
 #include "mali_kbase_mem.h"
 #include "mali_kbase_mem_pool_debugfs.h"
 #include "mali_kbase_mem_pool_group.h"
@@ -54,8 +54,8 @@
 #if !MALI_USE_CSF
 #include "mali_kbase_kinstr_jm.h"
 #endif
-#include "mali_kbase_hwcnt_context.h"
-#include "mali_kbase_hwcnt_virtualizer.h"
+#include "hwcnt/mali_kbase_hwcnt_context.h"
+#include "hwcnt/mali_kbase_hwcnt_virtualizer.h"
 #include "mali_kbase_kinstr_prfcnt.h"
 #include "mali_kbase_vinstr.h"
 #if MALI_USE_CSF
@@ -101,9 +101,9 @@
 #include <linux/version.h>
 #include <linux/version_compat_defs.h>
 #include <mali_kbase_hw.h>
-#if defined(CONFIG_SYNC) || defined(CONFIG_SYNC_FILE)
+#if IS_ENABLED(CONFIG_SYNC_FILE)
 #include <mali_kbase_sync.h>
-#endif /* CONFIG_SYNC || CONFIG_SYNC_FILE */
+#endif /* CONFIG_SYNC_FILE */
 #include <linux/clk.h>
 #include <linux/clk-provider.h>
 #include <linux/delay.h>
@@ -171,6 +171,11 @@ static const struct mali_kbase_capability_def kbase_caps_table[MALI_KBASE_NUM_CA
 	{ 11,  2 }              /* MEM_PROTECTED */
 #endif
 };
+
+#if (KERNEL_VERSION(5, 3, 0) <= LINUX_VERSION_CODE)
+/* Mutex to synchronize the probe of multiple kbase instances */
+static struct mutex kbase_probe_mutex;
+#endif
 
 /**
  * mali_kbase_supports_cap - Query whether a kbase capability is supported
@@ -1325,7 +1330,7 @@ static int kbase_api_mem_flags_change(struct kbase_context *kctx,
 static int kbase_api_stream_create(struct kbase_context *kctx,
 		struct kbase_ioctl_stream_create *stream)
 {
-#if defined(CONFIG_SYNC) || defined(CONFIG_SYNC_FILE)
+#if IS_ENABLED(CONFIG_SYNC_FILE)
 	int fd, ret;
 
 	/* Name must be NULL-terminated and padded with NULLs, so check last
@@ -1347,7 +1352,7 @@ static int kbase_api_stream_create(struct kbase_context *kctx,
 static int kbase_api_fence_validate(struct kbase_context *kctx,
 		struct kbase_ioctl_fence_validate *validate)
 {
-#if defined(CONFIG_SYNC) || defined(CONFIG_SYNC_FILE)
+#if IS_ENABLED(CONFIG_SYNC_FILE)
 	return kbase_sync_fence_validate(validate->fd);
 #else
 	return -ENOENT;
@@ -1361,12 +1366,18 @@ static int kbase_api_mem_profile_add(struct kbase_context *kctx,
 	int err;
 
 	if (data->len > KBASE_MEM_PROFILE_MAX_BUF_SIZE) {
-		dev_err(kctx->kbdev->dev, "mem_profile_add: buffer too big\n");
+		dev_err(kctx->kbdev->dev, "mem_profile_add: buffer too big");
 		return -EINVAL;
 	}
 
+	if (!data->len) {
+		dev_err(kctx->kbdev->dev, "mem_profile_add: buffer size is 0");
+		/* Should return -EINVAL, but returning -ENOMEM for backwards compat */
+		return -ENOMEM;
+	}
+
 	buf = kmalloc(data->len, GFP_KERNEL);
-	if (ZERO_OR_NULL_PTR(buf))
+	if (!buf)
 		return -ENOMEM;
 
 	err = copy_from_user(buf, u64_to_user_ptr(data->buffer),
@@ -1660,6 +1671,31 @@ static int kbasep_ioctl_cs_cpu_queue_dump(struct kbase_context *kctx,
 					cpu_queue_info->size);
 }
 
+#define POWER_DOWN_LATEST_FLUSH_VALUE ((u32)1)
+static int kbase_ioctl_read_user_page(struct kbase_context *kctx,
+				      union kbase_ioctl_read_user_page *user_page)
+{
+	struct kbase_device *kbdev = kctx->kbdev;
+	unsigned long flags;
+
+	/* As of now, only LATEST_FLUSH is supported */
+	if (unlikely(user_page->in.offset != LATEST_FLUSH))
+		return -EINVAL;
+
+	/* Validating padding that must be zero */
+	if (unlikely(user_page->in.padding != 0))
+		return -EINVAL;
+
+	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
+	if (!kbdev->pm.backend.gpu_powered)
+		user_page->out.val_lo = POWER_DOWN_LATEST_FLUSH_VALUE;
+	else
+		user_page->out.val_lo = kbase_reg_read(kbdev, USER_REG(LATEST_FLUSH));
+	user_page->out.val_hi = 0;
+	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
+
+	return 0;
+}
 #endif /* MALI_USE_CSF */
 
 static int kbasep_ioctl_context_priority_check(struct kbase_context *kctx,
@@ -2127,6 +2163,10 @@ static long kbase_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 				kbasep_ioctl_cs_cpu_queue_dump,
 				struct kbase_ioctl_cs_cpu_queue_info,
 				kctx);
+		break;
+	case KBASE_IOCTL_READ_USER_PAGE:
+		KBASE_HANDLE_IOCTL_INOUT(KBASE_IOCTL_READ_USER_PAGE, kbase_ioctl_read_user_page,
+					 union kbase_ioctl_read_user_page, kctx);
 		break;
 #endif /* MALI_USE_CSF */
 #if MALI_UNIT_TEST
@@ -3267,10 +3307,6 @@ static ssize_t gpuinfo_show(struct device *dev,
 		  .name = "Mali-G510" },
 		{ .id = GPU_ID2_PRODUCT_TVAX >> KBASE_GPU_ID_VERSION_PRODUCT_ID_SHIFT,
 		  .name = "Mali-G310" },
-		{ .id = GPU_ID2_PRODUCT_TTUX >> KBASE_GPU_ID_VERSION_PRODUCT_ID_SHIFT,
-		  .name = "Mali-TTUX" },
-		{ .id = GPU_ID2_PRODUCT_LTUX >> KBASE_GPU_ID_VERSION_PRODUCT_ID_SHIFT,
-		  .name = "Mali-LTUX" },
 	};
 	const char *product_name = "(Unknown Mali GPU)";
 	struct kbase_device *kbdev;
@@ -3305,19 +3341,19 @@ static ssize_t gpuinfo_show(struct device *dev,
 			GPU_FEATURES_RAY_TRACING_GET(gpu_props->props.raw_props.gpu_features);
 		const u8 nr_cores = gpu_props->num_cores;
 
-		/* Mali-TTUX_B(ig) if 10 < number of cores with ray tracing supproted.
-		 * Mali-TTUX if 10 < number of cores without ray tracing supported.
-		 * Mali-TTUX if 7 <= number of cores <= 10 regardless ray tracing.
-		 * Mali-LTUX if number of cores < 7.
+		/* Mali-G715-Immortalis if 10 < number of cores with ray tracing supproted.
+		 * Mali-G715 if 10 < number of cores without ray tracing supported.
+		 * Mali-G715 if 7 <= number of cores <= 10 regardless ray tracing.
+		 * Mali-G615 if number of cores < 7.
 		 */
 		if ((nr_cores > 10) && rt_supported)
-			product_name = "Mali-TTUX_B";
+			product_name = "Mali-G715-Immortalis";
 		else if (nr_cores >= 7)
-			product_name = "Mali-TTUX";
+			product_name = "Mali-G715";
 
 		if (nr_cores < 7) {
-			dev_warn(kbdev->dev, "nr_cores(%u) GPU ID must be LTUX", nr_cores);
-			product_name = "Mali-LTUX";
+			dev_warn(kbdev->dev, "nr_cores(%u) GPU ID must be G615", nr_cores);
+			product_name = "Mali-G615";
 		} else
 			dev_dbg(kbdev->dev, "GPU ID_Name: %s, nr_cores(%u)\n", product_name,
 				nr_cores);
@@ -4594,7 +4630,7 @@ int power_control_init(struct kbase_device *kbdev)
 	for (i = 0; i < BASE_MAX_NR_CLOCKS_REGULATORS; i++) {
 		kbdev->regulators[i] = regulator_get_optional(kbdev->dev,
 			regulator_names[i]);
-		if (IS_ERR_OR_NULL(kbdev->regulators[i])) {
+		if (IS_ERR(kbdev->regulators[i])) {
 			err = PTR_ERR(kbdev->regulators[i]);
 			kbdev->regulators[i] = NULL;
 			break;
@@ -4622,7 +4658,7 @@ int power_control_init(struct kbase_device *kbdev)
 	 */
 	for (i = 0; i < BASE_MAX_NR_CLOCKS_REGULATORS; i++) {
 		kbdev->clocks[i] = of_clk_get(kbdev->dev->of_node, i);
-		if (IS_ERR_OR_NULL(kbdev->clocks[i])) {
+		if (IS_ERR(kbdev->clocks[i])) {
 			err = PTR_ERR(kbdev->clocks[i]);
 			kbdev->clocks[i] = NULL;
 			break;
@@ -4660,7 +4696,7 @@ int power_control_init(struct kbase_device *kbdev)
 		kbdev->opp_table = dev_pm_opp_set_regulators(kbdev->dev,
 			regulator_names, BASE_MAX_NR_CLOCKS_REGULATORS);
 
-		if (IS_ERR_OR_NULL(kbdev->opp_table)) {
+		if (IS_ERR(kbdev->opp_table)) {
 			err = PTR_ERR(kbdev->opp_table);
 			goto regulators_probe_defer;
 		}
@@ -4869,47 +4905,77 @@ static const struct file_operations
 	.release = single_release,
 };
 
-int kbase_device_debugfs_init(struct kbase_device *kbdev)
+/**
+ * debugfs_ctx_defaults_init - Create the default configuration of new contexts in debugfs
+ * @kbdev: An instance of the GPU platform device, allocated from the probe method of the driver.
+ * Return: A pointer to the last dentry that it tried to create, whether successful or not.
+ *         Could be NULL or encode another error value.
+ */
+static struct dentry *debugfs_ctx_defaults_init(struct kbase_device *const kbdev)
 {
-	struct dentry *debugfs_ctx_defaults_directory;
-	int err;
 	/* prevent unprivileged use of debug file system
 	 * in old kernel version
 	 */
 	const mode_t mode = 0644;
+	struct dentry *dentry = debugfs_create_dir("defaults", kbdev->debugfs_ctx_directory);
+	struct dentry *debugfs_ctx_defaults_directory = dentry;
 
-	kbdev->mali_debugfs_directory = debugfs_create_dir(kbdev->devname,
-			NULL);
-	if (IS_ERR_OR_NULL(kbdev->mali_debugfs_directory)) {
+	if (IS_ERR_OR_NULL(dentry)) {
+		dev_err(kbdev->dev, "Couldn't create mali debugfs ctx defaults directory\n");
+		return dentry;
+	}
+
+	debugfs_create_bool("infinite_cache", mode,
+			debugfs_ctx_defaults_directory,
+			&kbdev->infinite_cache_active_default);
+
+	dentry = debugfs_create_file("mem_pool_max_size", mode, debugfs_ctx_defaults_directory,
+				   &kbdev->mem_pool_defaults.small,
+				   &kbase_device_debugfs_mem_pool_max_size_fops);
+	if (IS_ERR_OR_NULL(dentry)) {
+		dev_err(kbdev->dev, "Unable to create mem_pool_max_size debugfs entry\n");
+		return dentry;
+	}
+
+	dentry = debugfs_create_file("lp_mem_pool_max_size", mode, debugfs_ctx_defaults_directory,
+				   &kbdev->mem_pool_defaults.large,
+				   &kbase_device_debugfs_mem_pool_max_size_fops);
+	if (IS_ERR_OR_NULL(dentry))
+		dev_err(kbdev->dev, "Unable to create lp_mem_pool_max_size debugfs entry\n");
+
+	return dentry;
+}
+
+/**
+ * init_debugfs - Create device-wide debugfs directories and files for the Mali driver
+ * @kbdev: An instance of the GPU platform device, allocated from the probe method of the driver.
+ * Return: A pointer to the last dentry that it tried to create, whether successful or not.
+ *         Could be NULL or encode another error value.
+ */
+static struct dentry *init_debugfs(struct kbase_device *kbdev)
+{
+	struct dentry *dentry = debugfs_create_dir(kbdev->devname, NULL);
+
+	kbdev->mali_debugfs_directory = dentry;
+	if (IS_ERR_OR_NULL(dentry)) {
 		dev_err(kbdev->dev,
 			"Couldn't create mali debugfs directory: %s\n",
 			kbdev->devname);
-		err = -ENOMEM;
-		goto out;
+		return dentry;
 	}
 
-	kbdev->debugfs_ctx_directory = debugfs_create_dir("ctx",
-			kbdev->mali_debugfs_directory);
-	if (IS_ERR_OR_NULL(kbdev->debugfs_ctx_directory)) {
+	dentry = debugfs_create_dir("ctx", kbdev->mali_debugfs_directory);
+	kbdev->debugfs_ctx_directory = dentry;
+	if (IS_ERR_OR_NULL(dentry)) {
 		dev_err(kbdev->dev, "Couldn't create mali debugfs ctx directory\n");
-		err = -ENOMEM;
-		goto out;
+		return dentry;
 	}
 
-	kbdev->debugfs_instr_directory = debugfs_create_dir("instrumentation",
-			kbdev->mali_debugfs_directory);
-	if (IS_ERR_OR_NULL(kbdev->debugfs_instr_directory)) {
+	dentry = debugfs_create_dir("instrumentation", kbdev->mali_debugfs_directory);
+	kbdev->debugfs_instr_directory = dentry;
+	if (IS_ERR_OR_NULL(dentry)) {
 		dev_err(kbdev->dev, "Couldn't create mali debugfs instrumentation directory\n");
-		err = -ENOMEM;
-		goto out;
-	}
-
-	debugfs_ctx_defaults_directory = debugfs_create_dir("defaults",
-			kbdev->debugfs_ctx_directory);
-	if (IS_ERR_OR_NULL(debugfs_ctx_defaults_directory)) {
-		dev_err(kbdev->dev, "Couldn't create mali debugfs ctx defaults directory\n");
-		err = -ENOMEM;
-		goto out;
+		return dentry;
 	}
 
 	kbasep_regs_history_debugfs_init(kbdev);
@@ -4928,41 +4994,58 @@ int kbase_device_debugfs_init(struct kbase_device *kbdev)
 	/* fops_* variables created by invocations of macro
 	 * MAKE_QUIRK_ACCESSORS() above.
 	 */
-	debugfs_create_file("quirks_sc", 0644,
+	dentry = debugfs_create_file("quirks_sc", 0644,
 			kbdev->mali_debugfs_directory, kbdev,
 			&fops_sc_quirks);
-	debugfs_create_file("quirks_tiler", 0644,
-			kbdev->mali_debugfs_directory, kbdev,
-			&fops_tiler_quirks);
-	debugfs_create_file("quirks_mmu", 0644,
-			kbdev->mali_debugfs_directory, kbdev,
-			&fops_mmu_quirks);
-	debugfs_create_file("quirks_gpu", 0644, kbdev->mali_debugfs_directory,
-			    kbdev, &fops_gpu_quirks);
-
-	debugfs_create_bool("infinite_cache", mode,
-			debugfs_ctx_defaults_directory,
-			&kbdev->infinite_cache_active_default);
-
-	debugfs_create_file("mem_pool_max_size", mode,
-			debugfs_ctx_defaults_directory,
-			&kbdev->mem_pool_defaults.small,
-			&kbase_device_debugfs_mem_pool_max_size_fops);
-
-	debugfs_create_file("lp_mem_pool_max_size", mode,
-			debugfs_ctx_defaults_directory,
-			&kbdev->mem_pool_defaults.large,
-			&kbase_device_debugfs_mem_pool_max_size_fops);
-
-	if (kbase_hw_has_feature(kbdev, BASE_HW_FEATURE_PROTECTED_DEBUG_MODE)) {
-		debugfs_create_file("protected_debug_mode", 0444,
-				kbdev->mali_debugfs_directory, kbdev,
-				&fops_protected_debug_mode);
+	if (IS_ERR_OR_NULL(dentry)) {
+		dev_err(kbdev->dev, "Unable to create quirks_sc debugfs entry\n");
+		return dentry;
 	}
 
-	debugfs_create_file("reset", 0644,
+	dentry = debugfs_create_file("quirks_tiler", 0644,
+			kbdev->mali_debugfs_directory, kbdev,
+			&fops_tiler_quirks);
+	if (IS_ERR_OR_NULL(dentry)) {
+		dev_err(kbdev->dev, "Unable to create quirks_tiler debugfs entry\n");
+		return dentry;
+	}
+
+	dentry = debugfs_create_file("quirks_mmu", 0644,
+			kbdev->mali_debugfs_directory, kbdev,
+			&fops_mmu_quirks);
+	if (IS_ERR_OR_NULL(dentry)) {
+		dev_err(kbdev->dev, "Unable to create quirks_mmu debugfs entry\n");
+		return dentry;
+	}
+
+	dentry = debugfs_create_file("quirks_gpu", 0644, kbdev->mali_debugfs_directory,
+			    kbdev, &fops_gpu_quirks);
+	if (IS_ERR_OR_NULL(dentry)) {
+		dev_err(kbdev->dev, "Unable to create quirks_gpu debugfs entry\n");
+		return dentry;
+	}
+
+	dentry = debugfs_ctx_defaults_init(kbdev);
+	if (IS_ERR_OR_NULL(dentry))
+		return dentry;
+
+	if (kbase_hw_has_feature(kbdev, BASE_HW_FEATURE_PROTECTED_DEBUG_MODE)) {
+		dentry = debugfs_create_file("protected_debug_mode", 0444,
+				kbdev->mali_debugfs_directory, kbdev,
+				&fops_protected_debug_mode);
+		if (IS_ERR_OR_NULL(dentry)) {
+			dev_err(kbdev->dev, "Unable to create protected_debug_mode debugfs entry\n");
+			return dentry;
+		}
+	}
+
+	dentry = debugfs_create_file("reset", 0644,
 			kbdev->mali_debugfs_directory, kbdev,
 			&fops_trigger_reset);
+	if (IS_ERR_OR_NULL(dentry)) {
+		dev_err(kbdev->dev, "Unable to create reset debugfs entry\n");
+		return dentry;
+	}
 
 	kbase_ktrace_debugfs_init(kbdev);
 
@@ -4974,19 +5057,30 @@ int kbase_device_debugfs_init(struct kbase_device *kbdev)
 #endif /* CONFIG_MALI_DEVFREQ */
 
 #if !MALI_USE_CSF
-	debugfs_create_file("serialize_jobs", 0644,
+	dentry = debugfs_create_file("serialize_jobs", 0644,
 			kbdev->mali_debugfs_directory, kbdev,
 			&kbasep_serialize_jobs_debugfs_fops);
-
+	if (IS_ERR_OR_NULL(dentry)) {
+		dev_err(kbdev->dev, "Unable to create serialize_jobs debugfs entry\n");
+		return dentry;
+	}
+	kbase_timeline_io_debugfs_init(kbdev);
 #endif
 	kbase_dvfs_status_debugfs_init(kbdev);
 
 
-	return 0;
+	return dentry;
+}
 
-out:
-	debugfs_remove_recursive(kbdev->mali_debugfs_directory);
-	return err;
+int kbase_device_debugfs_init(struct kbase_device *kbdev)
+{
+	struct dentry *dentry = init_debugfs(kbdev);
+
+	if (IS_ERR_OR_NULL(dentry)) {
+		debugfs_remove_recursive(kbdev->mali_debugfs_directory);
+		return IS_ERR(dentry) ? PTR_ERR(dentry) : -ENOMEM;
+	}
+	return 0;
 }
 
 void kbase_device_debugfs_term(struct kbase_device *kbdev)
@@ -5512,7 +5606,9 @@ static int kbase_platform_device_probe(struct platform_device *pdev)
 
 	kbdev->dev = &pdev->dev;
 	dev_set_drvdata(kbdev->dev, kbdev);
-
+#if (KERNEL_VERSION(5, 3, 0) <= LINUX_VERSION_CODE)
+	mutex_lock(&kbase_probe_mutex);
+#endif
 	/* MTK */
 	err |= mtk_common_init(pdev, kbdev);
 	err |= mtk_platform_init(pdev, kbdev);
@@ -5533,6 +5629,9 @@ static int kbase_platform_device_probe(struct platform_device *pdev)
 
 		dev_set_drvdata(kbdev->dev, NULL);
 		kbase_device_free(kbdev);
+#if (KERNEL_VERSION(5, 3, 0) <= LINUX_VERSION_CODE)
+		mutex_unlock(&kbase_probe_mutex);
+#endif
 	} else {
 
 #ifdef ENABLE_MTK_MEMINFO
@@ -5557,6 +5656,9 @@ static int kbase_platform_device_probe(struct platform_device *pdev)
 		dev_info(kbdev->dev,
 			"Probed as %s\n", dev_name(kbdev->mdev.this_device));
 		kbase_increment_device_id();
+#if (KERNEL_VERSION(5, 3, 0) <= LINUX_VERSION_CODE)
+		mutex_unlock(&kbase_probe_mutex);
+#endif
 #ifdef CONFIG_MALI_ARBITER_SUPPORT
 		mutex_lock(&kbdev->pm.lock);
 		kbase_arbiter_pm_vm_event(kbdev, KBASE_VM_GPU_INITIALIZED_EVT);
@@ -5764,12 +5866,11 @@ static const struct dev_pm_ops kbase_pm_ops = {
 };
 
 #if IS_ENABLED(CONFIG_OF)
-static const struct of_device_id kbase_dt_ids[] = {
-	{ .compatible = "arm,malit6xx" },
-	{ .compatible = "arm,mali-midgard" },
-	{ .compatible = "arm,mali-bifrost" },
-	{ /* sentinel */ }
-};
+static const struct of_device_id kbase_dt_ids[] = { { .compatible = "arm,malit6xx" },
+						    { .compatible = "arm,mali-midgard" },
+						    { .compatible = "arm,mali-bifrost" },
+						    { .compatible = "arm,mali-valhall" },
+						    { /* sentinel */ } };
 MODULE_DEVICE_TABLE(of, kbase_dt_ids);
 #endif
 
@@ -5784,26 +5885,29 @@ static struct platform_driver kbase_platform_driver = {
 	},
 };
 
-/*
- * The driver will not provide a shortcut to create the Mali platform device
- * anymore when using Device Tree.
- */
-#if IS_ENABLED(CONFIG_OF)
+#if (KERNEL_VERSION(5, 3, 0) > LINUX_VERSION_CODE) && IS_ENABLED(CONFIG_OF)
 module_platform_driver(kbase_platform_driver);
 #else
-
 static int __init kbase_driver_init(void)
 {
 	int ret;
 
+#if (KERNEL_VERSION(5, 3, 0) <= LINUX_VERSION_CODE)
+	mutex_init(&kbase_probe_mutex);
+#endif
+
+#ifndef CONFIG_OF
 	ret = kbase_platform_register();
 	if (ret)
 		return ret;
-
+#endif
 	ret = platform_driver_register(&kbase_platform_driver);
-
-	if (ret)
+#ifndef CONFIG_OF
+	if (ret) {
 		kbase_platform_unregister();
+		return ret;
+	}
+#endif
 
 	return ret;
 }
@@ -5811,14 +5915,14 @@ static int __init kbase_driver_init(void)
 static void __exit kbase_driver_exit(void)
 {
 	platform_driver_unregister(&kbase_platform_driver);
+#ifndef CONFIG_OF
 	kbase_platform_unregister();
+#endif
 }
 
 module_init(kbase_driver_init);
 module_exit(kbase_driver_exit);
-
-#endif /* CONFIG_OF */
-
+#endif
 MODULE_LICENSE("GPL");
 MODULE_VERSION(MALI_RELEASE_NAME " (UK version " \
 		__stringify(BASE_UK_VERSION_MAJOR) "." \

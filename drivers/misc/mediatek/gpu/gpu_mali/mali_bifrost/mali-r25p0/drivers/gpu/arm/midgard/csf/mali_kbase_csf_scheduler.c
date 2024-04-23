@@ -207,6 +207,7 @@ static int force_scheduler_to_exit_sleep(struct kbase_device *kbdev)
 	}
 
 	scheduler->state = SCHED_SUSPENDED;
+	KBASE_KTRACE_ADD(kbdev, SCHED_SUSPENDED, NULL, scheduler->state);
 
 	return 0;
 
@@ -464,6 +465,7 @@ void kbase_csf_scheduler_process_gpu_idle_event(struct kbase_device *kbdev)
 	int non_idle_offslot_grps;
 	bool can_suspend_on_idle;
 
+	lockdep_assert_held(&kbdev->hwaccess_lock);
 	lockdep_assert_held(&scheduler->interrupt_lock);
 
 	non_idle_offslot_grps = atomic_read(&scheduler->non_idle_offslot_grps);
@@ -720,7 +722,8 @@ static int scheduler_pm_active_handle_suspend(struct kbase_device *kbdev,
  *                                     Scheduler
  *
  * @kbdev: Pointer to the device
- * @flags: flags containing previous interrupt state
+ * @flags: Pointer to the flags variable containing the interrupt state
+ *         when hwaccess lock was acquired.
  *
  * This function is called when Scheduler needs to be activated from the
  * sleeping state.
@@ -728,14 +731,14 @@ static int scheduler_pm_active_handle_suspend(struct kbase_device *kbdev,
  * MCU is initiated. It resets the flag that indicates to the MCU state
  * machine that MCU needs to be put in sleep state.
  *
- * Note: This function shall be called with hwaccess lock held and it will
- * release that lock.
+ * Note: This function shall be called with hwaccess lock held and it may
+ * release that lock and reacquire it.
  *
  * Return: zero when the PM reference was taken and non-zero when the
  * system is being suspending/suspended.
  */
 static int scheduler_pm_active_after_sleep(struct kbase_device *kbdev,
-					   unsigned long flags)
+					   unsigned long *flags)
 {
 	u32 prev_count;
 	int ret = 0;
@@ -746,20 +749,20 @@ static int scheduler_pm_active_after_sleep(struct kbase_device *kbdev,
 	prev_count = kbdev->csf.scheduler.pm_active_count;
 	if (!WARN_ON(prev_count == U32_MAX))
 		kbdev->csf.scheduler.pm_active_count++;
-	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 
 	/* On 0 => 1, make a pm_ctx_active request */
 	if (!prev_count) {
+		spin_unlock_irqrestore(&kbdev->hwaccess_lock, *flags);
+
 		ret = kbase_pm_context_active_handle_suspend(kbdev,
 				KBASE_PM_SUSPEND_HANDLER_DONT_REACTIVATE);
 
-		spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
+		spin_lock_irqsave(&kbdev->hwaccess_lock, *flags);
 		if (ret)
 			kbdev->csf.scheduler.pm_active_count--;
 		else
 			kbdev->pm.backend.gpu_sleep_mode_active = false;
 		kbase_pm_update_state(kbdev);
-		spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 	}
 
 	return ret;
@@ -863,8 +866,8 @@ static void scheduler_wakeup(struct kbase_device *kbdev, bool kick)
 			"Re-activating the Scheduler out of sleep");
 
 		spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
-		ret = scheduler_pm_active_after_sleep(kbdev, flags);
-		/* hwaccess_lock is released in the previous function call. */
+		ret = scheduler_pm_active_after_sleep(kbdev, &flags);
+		spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 #endif
 	}
 
@@ -878,6 +881,7 @@ static void scheduler_wakeup(struct kbase_device *kbdev, bool kick)
 	}
 
 	scheduler->state = SCHED_INACTIVE;
+	KBASE_KTRACE_ADD(kbdev, SCHED_INACTIVE, NULL, scheduler->state);
 
 	if (kick)
 		scheduler_enable_tick_timer_nolock(kbdev);
@@ -893,6 +897,7 @@ static void scheduler_suspend(struct kbase_device *kbdev)
 		dev_dbg(kbdev->dev, "Suspending the Scheduler");
 		scheduler_pm_idle(kbdev);
 		scheduler->state = SCHED_SUSPENDED;
+		KBASE_KTRACE_ADD(kbdev, SCHED_SUSPENDED, NULL, scheduler->state);
 	}
 }
 
@@ -923,6 +928,8 @@ static void update_idle_suspended_group_state(struct kbase_queue_group *group)
 					 KBASE_CSF_GROUP_SUSPENDED);
 	} else if (group->run_state == KBASE_CSF_GROUP_SUSPENDED_ON_IDLE) {
 		group->run_state = KBASE_CSF_GROUP_SUSPENDED;
+		KBASE_KTRACE_ADD_CSF_GRP(group->kctx->kbdev, CSF_GROUP_SUSPENDED, group,
+					 group->run_state);
 
 		/* If scheduler is not suspended and the given group's
 		 * static priority (reflected by the scan_seq_num) is inside
@@ -1354,6 +1361,7 @@ int kbase_csf_scheduler_queue_stop(struct kbase_queue *queue)
 	}
 
 	mutex_unlock(&kbdev->csf.scheduler.lock);
+	KBASE_KTRACE_ADD_CSF_GRP_Q(kbdev, QUEUE_STOP, group, queue, group->run_state);
 	return err;
 }
 
@@ -1884,12 +1892,10 @@ static void schedule_in_cycle(struct kbase_queue_group *group, bool force)
 	 * of work needs to be enforced in situation such as entering into
 	 * protected mode).
 	 */
-	if ((likely(scheduler_timer_is_enabled_nolock(kbdev)) || force) &&
-			!scheduler->tock_pending_request) {
-		scheduler->tock_pending_request = true;
+	if (likely(scheduler_timer_is_enabled_nolock(kbdev)) || force) {
 		dev_dbg(kbdev->dev, "Kicking async for group %d\n",
 			group->handle);
-		mod_delayed_work(scheduler->wq, &scheduler->tock_work, 0);
+		kbase_csf_scheduler_invoke_tock(kbdev);
 	}
 }
 
@@ -2059,6 +2065,8 @@ static void insert_group_to_idle_wait(struct kbase_queue_group *const group)
 	KBASE_KTRACE_ADD_CSF_GRP(kctx->kbdev, GROUP_IDLE_WAIT_INSERT, group,
 				 kctx->csf.sched.num_idle_wait_grps);
 	group->run_state = KBASE_CSF_GROUP_SUSPENDED_ON_WAIT_SYNC;
+	KBASE_KTRACE_ADD_CSF_GRP(kctx->kbdev, CSF_GROUP_SUSPENDED_ON_WAIT_SYNC, group,
+				 group->run_state);
 	dev_dbg(kctx->kbdev->dev,
 		"Group-%d suspended on sync_wait, total wait_groups: %u\n",
 		group->handle, kctx->csf.sched.num_idle_wait_grps);
@@ -2084,6 +2092,7 @@ static void remove_group_from_idle_wait(struct kbase_queue_group *const group)
 				NULL;
 	KBASE_KTRACE_ADD_CSF_GRP(kctx->kbdev, GROUP_IDLE_WAIT_HEAD, new_head_grp, 0u);
 	group->run_state = KBASE_CSF_GROUP_INACTIVE;
+	KBASE_KTRACE_ADD_CSF_GRP(kctx->kbdev, CSF_GROUP_INACTIVE, group, group->run_state);
 }
 
 static void deschedule_idle_wait_group(struct kbase_csf_scheduler *scheduler,
@@ -2262,11 +2271,15 @@ static void save_csg_slot(struct kbase_queue_group *group)
 			else {
 				group->run_state =
 					KBASE_CSF_GROUP_SUSPENDED_ON_IDLE;
+				KBASE_KTRACE_ADD_CSF_GRP(kbdev, CSF_GROUP_SUSPENDED_ON_IDLE, group,
+							 group->run_state);
 				dev_dbg(kbdev->dev, "Group-%d suspended: idle",
 					group->handle);
 			}
 		} else {
 			group->run_state = KBASE_CSF_GROUP_SUSPENDED;
+			KBASE_KTRACE_ADD_CSF_GRP(kbdev, CSF_GROUP_SUSPENDED, group,
+						 group->run_state);
 		}
 
 		update_offslot_non_idle_cnt_on_grp_suspend(group);
@@ -2615,8 +2628,11 @@ static void sched_evict_group(struct kbase_queue_group *group, bool fault,
 
 		WARN_ON(group->run_state != KBASE_CSF_GROUP_INACTIVE);
 
-		if (fault)
+		if (fault) {
 			group->run_state = KBASE_CSF_GROUP_FAULT_EVICTED;
+			KBASE_KTRACE_ADD_CSF_GRP(kbdev, CSF_GROUP_FAULT_EVICTED, group,
+						 scheduler->total_runnable_grps);
+		}
 
 		KBASE_KTRACE_ADD_CSF_GRP(kbdev, GROUP_EVICT, group,
 					 (((u64)scheduler->total_runnable_grps) << 32) |
@@ -2637,7 +2653,8 @@ static int term_group_sync(struct kbase_queue_group *group)
 	term_csg_slot(group);
 
 	remaining = wait_event_timeout(kbdev->csf.event_wait,
-		csg_slot_stopped_locked(kbdev, group->csg_nr), remaining);
+		group->cs_unrecoverable || csg_slot_stopped_locked(kbdev, group->csg_nr),
+		remaining);
 
 	if (!remaining) {
 		dev_warn(kbdev->dev, "[%llu] term request timeout (%d ms) for group %d of context %d_%d on slot %d",
@@ -2761,6 +2778,8 @@ static int scheduler_group_schedule(struct kbase_queue_group *group)
 				group));
 
 			group->run_state = KBASE_CSF_GROUP_RUNNABLE;
+			KBASE_KTRACE_ADD_CSF_GRP(kbdev, CSF_GROUP_RUNNABLE, group,
+						 group->run_state);
 
 			/* A normal mode CSG could be idle onslot during
 			 * protected mode. In this case clear the
@@ -3278,6 +3297,8 @@ static void wait_csg_slots_start(struct kbase_device *kbdev)
 				/* The on slot csg is now running */
 				clear_bit(i, slot_mask);
 				group->run_state = KBASE_CSF_GROUP_RUNNABLE;
+				KBASE_KTRACE_ADD_CSF_GRP(kbdev, CSF_GROUP_RUNNABLE, group,
+							 group->run_state);
 			}
 		} else {
 			dev_warn(kbdev->dev, "[%llu] Timeout (%d ms) waiting for CSG slots to start, slots: 0x%*pb\n",
@@ -3424,16 +3445,16 @@ static void wait_csg_slots_finish_prio_update(struct kbase_device *kbdev)
 	lockdep_assert_held(&kbdev->csf.scheduler.lock);
 
 	if (ret != 0) {
-		/* The update timeout is not regarded as a serious
-		 * issue, no major consequences are expected as a
-		 * result, so just warn the case.
-		 */
 		dev_warn(
 			kbdev->dev,
 			"[%llu] Timeout (%d ms) on CSG_REQ:EP_CFG, skipping the update wait: slot mask=0x%lx",
 			kbase_backend_get_cycle_cnt(kbdev),
 			kbdev->csf.fw_timeout_ms,
 			slot_mask[0]);
+
+		/* Timeout could indicate firmware is unresponsive so trigger a GPU reset. */
+		if (kbase_prepare_to_reset_gpu(kbdev, RESET_FLAGS_HWC_UNRECOVERABLE_ERROR))
+			kbase_reset_gpu(kbdev);
 	}
 }
 
@@ -3499,6 +3520,7 @@ void kbase_csf_scheduler_evict_ctx_slots(struct kbase_device *kbdev,
 	kbase_event_wakeup(kctx);
 
 	mutex_unlock(&scheduler->lock);
+	KBASE_KTRACE_ADD(kbdev, SCHEDULER_EVICT_CTX_SLOTS_END, kctx, num_groups);
 }
 
 /**
@@ -4176,17 +4198,21 @@ static void scheduler_handle_idle_slots(struct kbase_device *kbdev)
 
 		if (group_on_slot_is_idle(kbdev, i)) {
 			group->run_state = KBASE_CSF_GROUP_IDLE;
+			KBASE_KTRACE_ADD_CSF_GRP(kbdev, CSF_GROUP_IDLE, group, group->run_state);
 			set_bit(i, scheduler->csg_slots_idle_mask);
 			KBASE_KTRACE_ADD_CSF_GRP(kbdev, CSG_SLOT_IDLE_SET,
 						 group, scheduler->csg_slots_idle_mask[0]);
-		} else
+		} else {
 			group->run_state = KBASE_CSF_GROUP_RUNNABLE;
+			KBASE_KTRACE_ADD_CSF_GRP(kbdev, CSF_GROUP_RUNNABLE, group,
+						 group->run_state);
+		}
 	}
 
 	bitmap_or(scheduler->csg_slots_idle_mask,
 		  scheduler->csg_slots_idle_mask,
 		  failed_csg_bitmap, num_groups);
-	KBASE_KTRACE_ADD_CSF_GRP(kbdev, CSG_SLOT_IDLE_SET, NULL,
+	KBASE_KTRACE_ADD_CSF_GRP(kbdev, SCHEDULER_HANDLE_IDLE_SLOTS, NULL,
 				 scheduler->csg_slots_idle_mask[0]);
 	spin_unlock_irqrestore(&scheduler->interrupt_lock, flags);
 }
@@ -4412,6 +4438,7 @@ static void scheduler_sleep_on_idle(struct kbase_device *kbdev)
 	cancel_tick_timer(kbdev);
 	scheduler_pm_idle_before_sleep(kbdev);
 	scheduler->state = SCHED_SLEEPING;
+	KBASE_KTRACE_ADD(kbdev, SCHED_SLEEPING, NULL, scheduler->state);
 }
 #endif
 
@@ -4478,6 +4505,8 @@ static void gpu_idle_worker(struct work_struct *work)
 		else
 #endif
 			all_groups_suspended = scheduler_suspend_on_idle(kbdev);
+
+		KBASE_KTRACE_ADD(kbdev, SCHEDULER_GPU_IDLE_WORKER_HANDLING_END, NULL, 0u);
 	}
 
 	mutex_unlock(&scheduler->lock);
@@ -4635,12 +4664,73 @@ static int prepare_fast_local_tock(struct kbase_device *kbdev)
 		struct kbase_csf_csg_slot *csg_slot = &scheduler->csg_slots[i];
 		struct kbase_queue_group *group = csg_slot->resident_group;
 
-		if (!queue_group_idle_locked(group))
+		if (!queue_group_idle_locked(group)) {
 			group->run_state = KBASE_CSF_GROUP_IDLE;
+			KBASE_KTRACE_ADD_CSF_GRP(kbdev, CSF_GROUP_IDLE, group, group->run_state);
+		}
 	}
 
 	/* Return the number of idle slots for potential replacement */
 	return bitmap_weight(csg_bitmap, num_groups);
+}
+
+static int wait_csg_slots_suspend(struct kbase_device *kbdev, const unsigned long *slot_mask,
+				  unsigned int timeout_ms)
+{
+	struct kbase_csf_scheduler *const scheduler = &kbdev->csf.scheduler;
+	long remaining = kbase_csf_timeout_in_jiffies(timeout_ms);
+	u32 num_groups = kbdev->csf.global_iface.group_num;
+	int err = 0;
+	DECLARE_BITMAP(slot_mask_local, MAX_SUPPORTED_CSGS);
+
+	lockdep_assert_held(&scheduler->lock);
+
+	bitmap_copy(slot_mask_local, slot_mask, MAX_SUPPORTED_CSGS);
+
+	while (!bitmap_empty(slot_mask_local, MAX_SUPPORTED_CSGS) && remaining) {
+		DECLARE_BITMAP(changed, MAX_SUPPORTED_CSGS);
+
+		bitmap_copy(changed, slot_mask_local, MAX_SUPPORTED_CSGS);
+
+		remaining = wait_event_timeout(
+			kbdev->csf.event_wait,
+			slots_state_changed(kbdev, changed, csg_slot_stopped_locked), remaining);
+
+		if (remaining) {
+			u32 i;
+
+			for_each_set_bit(i, changed, num_groups) {
+				struct kbase_queue_group *group;
+
+				if (WARN_ON(!csg_slot_stopped_locked(kbdev, (s8)i)))
+					continue;
+
+				/* The on slot csg is now stopped */
+				clear_bit(i, slot_mask_local);
+
+				group = scheduler->csg_slots[i].resident_group;
+				if (likely(group)) {
+					/* Only do save/cleanup if the
+					 * group is not terminated during
+					 * the sleep.
+					 */
+					save_csg_slot(group);
+					if (cleanup_csg_slot(group))
+						sched_evict_group(group, true, true);
+				}
+			}
+		} else {
+			dev_warn(
+				kbdev->dev,
+				"[%llu] Timeout waiting for CSG slots to suspend, slot_mask: 0x%*pb\n",
+				kbase_backend_get_cycle_cnt(kbdev), num_groups, slot_mask_local);
+
+
+			err = -ETIMEDOUT;
+		}
+	}
+
+	return err;
 }
 
 static void schedule_actions(struct kbase_device *kbdev, bool is_tick)
@@ -4653,6 +4743,8 @@ static void schedule_actions(struct kbase_device *kbdev, bool is_tick)
 	bool skip_idle_slots_update;
 	bool new_protm_top_grp = false;
 	int local_tock_slots = 0;
+	size_t i;
+	struct kbase_queue_group *lru_idle_group = NULL;
 
 	kbase_reset_gpu_assert_prevented(kbdev);
 	lockdep_assert_held(&scheduler->lock);
@@ -4790,6 +4882,47 @@ redo_local_tock:
 	} else {
 		spin_unlock_irqrestore(&scheduler->interrupt_lock, flags);
 	}
+
+	/* Evict the least-recently-used idle or blocked CSG to allow for
+	 * speedier starting/resumption of another CSG. The worst-case scenario
+	 * of the evicted CSG being scheduled next is expected to be rare.
+	 */
+	BUILD_BUG_ON(MAX_SUPPORTED_CSGS > (sizeof(int) * BITS_PER_BYTE));
+	if (fls(scheduler->csg_inuse_bitmap[0]) != kbdev->csf.global_iface.group_num)
+		return; /* Some CSG slots remain unused */
+
+	for (i = 0; i != kbdev->csf.global_iface.group_num; ++i) {
+		struct kbase_queue_group *const group = scheduler->csg_slots[i].resident_group;
+
+		/* We expect that by this point all groups would normally be
+		 * assigned a physical CSG slot, but if circumstances have
+		 * changed then bail out of this optimisation.
+		 */
+		if (group == NULL)
+			return;
+
+		/* Real-time priority CSGs must be kept on-slot even when
+		 * idle.
+		 */
+		if ((group->run_state == KBASE_CSF_GROUP_IDLE) &&
+		    (group->priority != BASE_QUEUE_GROUP_PRIORITY_REALTIME)) {
+			if ((lru_idle_group == NULL) ||
+			    (lru_idle_group->prepared_seq_num < group->prepared_seq_num))
+				lru_idle_group = group;
+		}
+	}
+
+	if (lru_idle_group != NULL) {
+		unsigned long const slot_mask = 1 << lru_idle_group->csg_nr;
+
+		dev_dbg(kbdev->dev, "Suspending LRU idle group %p\n", (void *)lru_idle_group);
+		suspend_queue_group(lru_idle_group);
+		if (wait_csg_slots_suspend(kbdev, &slot_mask, kbdev->csf.fw_timeout_ms))
+			dev_warn(kbdev->dev,
+				 "[%llu] Timeout waiting for the group %d to suspend on slot %d",
+				 kbase_backend_get_cycle_cnt(kbdev), lru_idle_group->handle,
+				 lru_idle_group->csg_nr);
+	}
 }
 
 /**
@@ -4820,12 +4953,12 @@ static bool can_skip_scheduling(struct kbase_device *kbdev)
 
 		spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 		if (kbdev->pm.backend.exit_gpu_sleep_mode) {
-			int ret = scheduler_pm_active_after_sleep(kbdev, flags);
-			/* hwaccess_lock is released in the previous function
-			 * call.
-			 */
+			int ret = scheduler_pm_active_after_sleep(kbdev, &flags);
+
+			spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 			if (!ret) {
 				scheduler->state = SCHED_INACTIVE;
+				KBASE_KTRACE_ADD(kbdev, SCHED_INACTIVE, NULL, scheduler->state);
 				return false;
 			}
 
@@ -4843,13 +4976,10 @@ static bool can_skip_scheduling(struct kbase_device *kbdev)
 
 static void schedule_on_tock(struct work_struct *work)
 {
-	struct kbase_device *kbdev = container_of(work, struct kbase_device,
-					csf.scheduler.tock_work.work);
+	struct kbase_device *kbdev =
+		container_of(work, struct kbase_device, csf.scheduler.tock_work.work);
 	struct kbase_csf_scheduler *const scheduler = &kbdev->csf.scheduler;
 	int err;
-
-	/* Tock work item is serviced */
-	scheduler->tock_pending_request = false;
 
 	err = kbase_reset_gpu_try_prevent(kbdev);
 	/* Regardless of whether reset failed or is currently happening, exit
@@ -4864,15 +4994,18 @@ static void schedule_on_tock(struct work_struct *work)
 
 	WARN_ON(!(scheduler->state == SCHED_INACTIVE));
 	scheduler->state = SCHED_BUSY;
+	KBASE_KTRACE_ADD(kbdev, SCHED_BUSY, NULL, scheduler->state);
 
 	/* Undertaking schedule action steps */
 	KBASE_KTRACE_ADD(kbdev, SCHEDULER_TOCK_START, NULL, 0u);
-	schedule_actions(kbdev, false);
+	while (atomic_cmpxchg(&scheduler->pending_tock_work, true, false) == true)
+		schedule_actions(kbdev, false);
 
 	/* Record time information on a non-skipped tock */
 	scheduler->last_schedule = jiffies;
 
 	scheduler->state = SCHED_INACTIVE;
+	KBASE_KTRACE_ADD(kbdev, SCHED_INACTIVE, NULL, scheduler->state);
 	if (!scheduler->total_runnable_grps)
 		enqueue_gpu_idle_work(scheduler);
 	mutex_unlock(&scheduler->lock);
@@ -4891,8 +5024,8 @@ exit_no_schedule_unlock:
 
 static void schedule_on_tick(struct work_struct *work)
 {
-	struct kbase_device *kbdev = container_of(work, struct kbase_device,
-					csf.scheduler.tick_work);
+	struct kbase_device *kbdev =
+		container_of(work, struct kbase_device, csf.scheduler.tick_work);
 	struct kbase_csf_scheduler *const scheduler = &kbdev->csf.scheduler;
 
 	int err = kbase_reset_gpu_try_prevent(kbdev);
@@ -4909,6 +5042,7 @@ static void schedule_on_tick(struct work_struct *work)
 		goto exit_no_schedule_unlock;
 
 	scheduler->state = SCHED_BUSY;
+	KBASE_KTRACE_ADD(kbdev, SCHED_BUSY, NULL, scheduler->state);
 
 	/* Undertaking schedule action steps */
 	KBASE_KTRACE_ADD(kbdev, SCHEDULER_TICK_START, NULL, scheduler->total_runnable_grps);
@@ -4930,6 +5064,7 @@ static void schedule_on_tick(struct work_struct *work)
 
 	scheduler->state = SCHED_INACTIVE;
 	mutex_unlock(&scheduler->lock);
+	KBASE_KTRACE_ADD(kbdev, SCHED_INACTIVE, NULL, scheduler->state);
 	kbase_reset_gpu_allow(kbdev);
 
 	dev_dbg(kbdev->dev, "Waking up for event after schedule-on-tick completes.");
@@ -4941,67 +5076,6 @@ static void schedule_on_tick(struct work_struct *work)
 exit_no_schedule_unlock:
 	mutex_unlock(&scheduler->lock);
 	kbase_reset_gpu_allow(kbdev);
-}
-
-static int wait_csg_slots_suspend(struct kbase_device *kbdev,
-			   const unsigned long *slot_mask,
-			   unsigned int timeout_ms)
-{
-	struct kbase_csf_scheduler *const scheduler = &kbdev->csf.scheduler;
-	long remaining = kbase_csf_timeout_in_jiffies(timeout_ms);
-	u32 num_groups = kbdev->csf.global_iface.group_num;
-	int err = 0;
-	DECLARE_BITMAP(slot_mask_local, MAX_SUPPORTED_CSGS);
-
-	lockdep_assert_held(&scheduler->lock);
-
-	bitmap_copy(slot_mask_local, slot_mask, MAX_SUPPORTED_CSGS);
-
-	while (!bitmap_empty(slot_mask_local, MAX_SUPPORTED_CSGS)
-		&& remaining) {
-		DECLARE_BITMAP(changed, MAX_SUPPORTED_CSGS);
-
-		bitmap_copy(changed, slot_mask_local, MAX_SUPPORTED_CSGS);
-
-		remaining = wait_event_timeout(kbdev->csf.event_wait,
-			slots_state_changed(kbdev, changed,
-				csg_slot_stopped_locked),
-			remaining);
-
-		if (remaining) {
-			u32 i;
-
-			for_each_set_bit(i, changed, num_groups) {
-				struct kbase_queue_group *group;
-
-				if (WARN_ON(!csg_slot_stopped_locked(kbdev, (s8)i)))
-					continue;
-
-				/* The on slot csg is now stopped */
-				clear_bit(i, slot_mask_local);
-
-				group = scheduler->csg_slots[i].resident_group;
-				if (likely(group)) {
-					/* Only do save/cleanup if the
-					 * group is not terminated during
-					 * the sleep.
-					 */
-					save_csg_slot(group);
-					if (cleanup_csg_slot(group))
-						sched_evict_group(group, true, true);
-				}
-			}
-		} else {
-			dev_warn(kbdev->dev, "[%llu] Timeout waiting for CSG slots to suspend, slot_mask: 0x%*pb\n",
-				 kbase_backend_get_cycle_cnt(kbdev),
-				 num_groups, slot_mask_local);
-
-
-			err = -ETIMEDOUT;
-		}
-	}
-
-	return err;
 }
 
 static int suspend_active_queue_groups(struct kbase_device *kbdev,
@@ -5166,6 +5240,7 @@ static bool scheduler_handle_reset_in_protected_mode(struct kbase_device *kbdev)
 
 		cleanup_csg_slot(group);
 		group->run_state = KBASE_CSF_GROUP_SUSPENDED;
+		KBASE_KTRACE_ADD_CSF_GRP(kbdev, CSF_GROUP_SUSPENDED, group, group->run_state);
 
 		/* Simply treat the normal mode groups as non-idle. The tick
 		 * scheduled after the reset will re-initialize the counter
@@ -5180,10 +5255,15 @@ unlock:
 	return suspend_on_slot_groups;
 }
 
+static void cancel_tick_work(struct kbase_csf_scheduler *const scheduler)
+{
+	cancel_work_sync(&scheduler->tick_work);
+}
+
 static void cancel_tock_work(struct kbase_csf_scheduler *const scheduler)
 {
+	atomic_set(&scheduler->pending_tock_work, false);
 	cancel_delayed_work_sync(&scheduler->tock_work);
-	scheduler->tock_pending_request = false;
 }
 
 static void scheduler_inner_reset(struct kbase_device *kbdev)
@@ -5197,7 +5277,7 @@ static void scheduler_inner_reset(struct kbase_device *kbdev)
 	/* Cancel any potential queued delayed work(s) */
 	cancel_work_sync(&kbdev->csf.scheduler.gpu_idle_work);
 	cancel_tick_timer(kbdev);
-	cancel_work_sync(&scheduler->tick_work);
+	cancel_tick_work(scheduler);
 	cancel_tock_work(scheduler);
 	cancel_delayed_work_sync(&scheduler->ping_work);
 
@@ -5267,6 +5347,8 @@ void kbase_csf_scheduler_reset(struct kbase_device *kbdev)
 	}
 
 	mutex_unlock(&kbdev->kctx_list_lock);
+
+	KBASE_KTRACE_ADD(kbdev, SCHEDULER_RESET_END, NULL, 0u);
 
 	/* After queue groups reset, the scheduler data fields clear out */
 	scheduler_inner_reset(kbdev);
@@ -5681,6 +5763,8 @@ static bool check_sync_update_for_on_slot_group(
 				 */
 				group->reevaluate_idle_status = true;
 				group->run_state = KBASE_CSF_GROUP_RUNNABLE;
+				KBASE_KTRACE_ADD_CSF_GRP(kbdev, CSF_GROUP_RUNNABLE, group,
+							 group->run_state);
 			}
 
 			KBASE_KTRACE_ADD_CSF_GRP(kbdev, GROUP_SYNC_UPDATE_DONE, group, 0u);
@@ -5924,6 +6008,7 @@ int kbase_csf_scheduler_early_init(struct kbase_device *kbdev)
 
 	INIT_WORK(&scheduler->tick_work, schedule_on_tick);
 	INIT_DEFERRABLE_WORK(&scheduler->tock_work, schedule_on_tock);
+	atomic_set(&scheduler->pending_tock_work, false);
 
 	INIT_DEFERRABLE_WORK(&scheduler->ping_work, firmware_aliveness_monitor);
 
@@ -5939,13 +6024,13 @@ int kbase_csf_scheduler_early_init(struct kbase_device *kbdev)
 		(sizeof(scheduler->csgs_events_enable_mask) * BITS_PER_BYTE));
 	bitmap_fill(scheduler->csgs_events_enable_mask, MAX_SUPPORTED_CSGS);
 	scheduler->state = SCHED_SUSPENDED;
+	KBASE_KTRACE_ADD(kbdev, SCHED_SUSPENDED, NULL, scheduler->state);
 	scheduler->pm_active_count = 0;
 	scheduler->ngrp_to_schedule = 0;
 	scheduler->total_runnable_grps = 0;
 	scheduler->top_ctx = NULL;
 	scheduler->top_grp = NULL;
 	scheduler->last_schedule = 0;
-	scheduler->tock_pending_request = false;
 	scheduler->active_protm_grp = NULL;
 	scheduler->csg_scheduling_period_ms = CSF_SCHEDULER_TIME_TICK_MS;
 	scheduler_doorbell_init(kbdev);
@@ -5975,22 +6060,27 @@ void kbase_csf_scheduler_term(struct kbase_device *kbdev)
 		mutex_lock(&kbdev->csf.scheduler.lock);
 
 		if (kbdev->csf.scheduler.state != SCHED_SUSPENDED) {
+			unsigned long flags;
 			/* The power policy could prevent the Scheduler from
 			 * getting suspended when GPU becomes idle.
 			 */
+			spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 			WARN_ON(kbase_pm_idle_groups_sched_suspendable(kbdev));
+			spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 			scheduler_suspend(kbdev);
 		}
 
 		mutex_unlock(&kbdev->csf.scheduler.lock);
 		cancel_delayed_work_sync(&kbdev->csf.scheduler.ping_work);
 		cancel_tick_timer(kbdev);
-		cancel_work_sync(&kbdev->csf.scheduler.tick_work);
+		cancel_tick_work(&kbdev->csf.scheduler);
 		cancel_tock_work(&kbdev->csf.scheduler);
 		mutex_destroy(&kbdev->csf.scheduler.lock);
 		kfree(kbdev->csf.scheduler.csg_slots);
 		kbdev->csf.scheduler.csg_slots = NULL;
 	}
+	KBASE_KTRACE_ADD_CSF_GRP(kbdev, CSF_GROUP_TERMINATED, NULL,
+				 kbase_csf_scheduler_get_nr_active_csgs(kbdev));
 }
 
 void kbase_csf_scheduler_early_term(struct kbase_device *kbdev)
@@ -6063,13 +6153,12 @@ void kbase_csf_scheduler_timer_set_enabled(struct kbase_device *kbdev,
 	if (currently_enabled && !enable) {
 		scheduler->timer_enabled = false;
 		cancel_tick_timer(kbdev);
-		cancel_delayed_work(&scheduler->tock_work);
-		scheduler->tock_pending_request = false;
 		mutex_unlock(&scheduler->lock);
 		/* The non-sync version to cancel the normal work item is not
 		 * available, so need to drop the lock before cancellation.
 		 */
-		cancel_work_sync(&scheduler->tick_work);
+		cancel_tick_work(scheduler);
+		cancel_tock_work(scheduler);
 		return;
 	}
 
@@ -6141,7 +6230,7 @@ int kbase_csf_scheduler_pm_suspend(struct kbase_device *kbdev)
 	struct kbase_csf_scheduler *scheduler = &kbdev->csf.scheduler;
 
 	/* Cancel any potential queued delayed work(s) */
-	cancel_work_sync(&scheduler->tick_work);
+	cancel_tick_work(scheduler);
 	cancel_tock_work(scheduler);
 
 	result = kbase_reset_gpu_prevent_and_wait(kbdev);
@@ -6265,6 +6354,7 @@ int kbase_csf_scheduler_handle_runtime_suspend(struct kbase_device *kbdev)
 	}
 
 	scheduler->state = SCHED_SUSPENDED;
+	KBASE_KTRACE_ADD(kbdev, SCHED_SUSPENDED, NULL, scheduler->state);
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 	kbdev->pm.backend.gpu_sleep_mode_active = false;
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);

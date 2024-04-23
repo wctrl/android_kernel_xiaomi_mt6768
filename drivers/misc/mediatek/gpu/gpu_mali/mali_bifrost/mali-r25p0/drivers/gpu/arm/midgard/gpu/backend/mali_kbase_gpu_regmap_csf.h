@@ -35,10 +35,7 @@
 #define MCU_SUBSYSTEM_BASE 0x20000
 
 /* IPA control registers */
-#define IPA_CONTROL_BASE       0x40000
-#define IPA_CONTROL_REG(r)     (IPA_CONTROL_BASE+(r))
 #define COMMAND                0x000 /* (WO) Command register */
-#define STATUS                 0x004 /* (RO) Status register */
 #define TIMER                  0x008 /* (RW) Timer control register */
 
 #define SELECT_CSHW_LO         0x010 /* (RW) Counter select for CS hardware, low word */
@@ -126,6 +123,7 @@
 #define MCU_CNTRL_DOORBELL_DISABLE_MASK (1 << MCU_CNTRL_DOORBELL_DISABLE_SHIFT)
 
 #define MCU_STATUS_HALTED        (1 << 1)
+
 
 /* JOB IRQ flags */
 #define JOB_IRQ_GLOBAL_IF       (1 << 31)   /* Global interface interrupt received */

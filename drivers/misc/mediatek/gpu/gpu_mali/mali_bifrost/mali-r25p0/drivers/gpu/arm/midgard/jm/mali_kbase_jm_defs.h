@@ -524,16 +524,12 @@ struct kbase_jd_atom {
 	u32 device_nr;
 	u64 jc;
 	void *softjob_data;
-#if defined(CONFIG_SYNC)
-	struct sync_fence *fence;
-	struct sync_fence_waiter sync_waiter;
-#endif				/* CONFIG_SYNC */
-#if defined(CONFIG_MALI_DMA_FENCE) || defined(CONFIG_SYNC_FILE)
+#if defined(CONFIG_MALI_DMA_FENCE) || IS_ENABLED(CONFIG_SYNC_FILE)
 	struct {
 		/* Use the functions/API defined in mali_kbase_fence.h to
 		 * when working with this sub struct
 		 */
-#if defined(CONFIG_SYNC_FILE)
+#if IS_ENABLED(CONFIG_SYNC_FILE)
 #if (KERNEL_VERSION(4, 10, 0) > LINUX_VERSION_CODE)
 		struct fence *fence_in;
 #else

@@ -537,6 +537,22 @@ static inline void kbase_csf_scheduler_invoke_tick(struct kbase_device *kbdev)
 }
 
 /**
+ * kbase_csf_scheduler_invoke_tock() - Invoke the scheduling tock
+ *
+ * @kbdev: Pointer to the device
+ *
+ * This function will queue the scheduling tock work item for immediate
+ * execution.
+ */
+static inline void kbase_csf_scheduler_invoke_tock(struct kbase_device *kbdev)
+{
+	struct kbase_csf_scheduler *const scheduler = &kbdev->csf.scheduler;
+
+	if (atomic_cmpxchg(&scheduler->pending_tock_work, false, true) == false)
+		mod_delayed_work(scheduler->wq, &scheduler->tock_work, 0);
+}
+
+/**
  * kbase_csf_scheduler_queue_has_trace() - report whether the queue has been
  *                                         configured to operate with the
  *                                         cs_trace feature.
