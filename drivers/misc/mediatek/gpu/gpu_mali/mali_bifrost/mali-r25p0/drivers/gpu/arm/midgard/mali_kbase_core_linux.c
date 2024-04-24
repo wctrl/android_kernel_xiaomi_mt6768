@@ -31,10 +31,7 @@
 #include <ipa/mali_kbase_ipa_debugfs.h>
 #endif /* CONFIG_DEVFREQ_THERMAL */
 #endif /* CONFIG_MALI_DEVFREQ */
-#if IS_ENABLED(CONFIG_MALI_NO_MALI)
 #include "backend/gpu/mali_kbase_model_linux.h"
-#include <backend/gpu/mali_kbase_model_dummy.h>
-#endif /* CONFIG_MALI_NO_MALI */
 #include "uapi/gpu/arm/midgard/mali_kbase_mem_profile_debugfs_buf_size.h"
 #include "mali_kbase_mem.h"
 #include "mali_kbase_mem_pool_debugfs.h"
@@ -707,7 +704,8 @@ static int kbase_file_create_kctx(struct kbase_file *const kfile,
 		kbase_ctx_flag_set(kctx, KCTX_INFINITE_CACHE);
 
 #if IS_ENABLED(CONFIG_DEBUG_FS)
-	snprintf(kctx_name, 64, "%d_%d", kctx->tgid, kctx->id);
+	if (unlikely(!scnprintf(kctx_name, 64, "%d_%d", kctx->tgid, kctx->id)))
+		return -ENOMEM;
 
 	mutex_init(&kctx->mem_profile_lock);
 
@@ -1544,6 +1542,9 @@ static int kbasep_kcpu_queue_enqueue(struct kbase_context *kctx,
 static int kbasep_cs_tiler_heap_init(struct kbase_context *kctx,
 		union kbase_ioctl_cs_tiler_heap_init *heap_init)
 {
+	if (heap_init->in.group_id >= MEMORY_GROUP_MANAGER_NR_GROUPS)
+		return -EINVAL;
+
 	kctx->jit_group_id = heap_init->in.group_id;
 
 	return kbase_csf_tiler_heap_init(kctx, heap_init->in.chunk_size,
@@ -1556,6 +1557,9 @@ static int kbasep_cs_tiler_heap_init(struct kbase_context *kctx,
 static int kbasep_cs_tiler_heap_init_1_13(struct kbase_context *kctx,
 					  union kbase_ioctl_cs_tiler_heap_init_1_13 *heap_init)
 {
+	if (heap_init->in.group_id >= MEMORY_GROUP_MANAGER_NR_GROUPS)
+		return -EINVAL;
+
 	kctx->jit_group_id = heap_init->in.group_id;
 
 	return kbase_csf_tiler_heap_init(kctx, heap_init->in.chunk_size,
@@ -4355,7 +4359,7 @@ void kbase_protected_mode_term(struct kbase_device *kbdev)
 	kfree(kbdev->protected_dev);
 }
 
-#if IS_ENABLED(CONFIG_MALI_NO_MALI)
+#if !IS_ENABLED(CONFIG_MALI_REAL_HW)
 static int kbase_common_reg_map(struct kbase_device *kbdev)
 {
 	return 0;
@@ -4363,7 +4367,7 @@ static int kbase_common_reg_map(struct kbase_device *kbdev)
 static void kbase_common_reg_unmap(struct kbase_device * const kbdev)
 {
 }
-#else /* CONFIG_MALI_NO_MALI */
+#else /* !IS_ENABLED(CONFIG_MALI_REAL_HW) */
 static int kbase_common_reg_map(struct kbase_device *kbdev)
 {
 	int err = 0;
@@ -4399,7 +4403,7 @@ static void kbase_common_reg_unmap(struct kbase_device * const kbdev)
 		kbdev->reg_size = 0;
 	}
 }
-#endif /* CONFIG_MALI_NO_MALI */
+#endif /* !IS_ENABLED(CONFIG_MALI_REAL_HW) */
 
 int registers_map(struct kbase_device * const kbdev)
 {
