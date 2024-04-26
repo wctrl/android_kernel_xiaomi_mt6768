@@ -168,6 +168,7 @@ int kbase_hwaccess_pm_init(struct kbase_device *kbdev)
 
 	init_waitqueue_head(&kbdev->pm.backend.poweroff_wait);
 
+
 	if (kbase_pm_ca_init(kbdev) != 0)
 		goto workq_fail;
 
@@ -671,7 +672,7 @@ int kbase_hwaccess_pm_powerup(struct kbase_device *kbdev, unsigned int flags)
 		return ret;
 	}
 #if MALI_USE_CSF
-	kbdev->pm.debug_core_mask = kbdev->gpu_props.props.raw_props.shader_present;
+	kbdev->pm.debug_core_mask = kbdev->gpu_props.shader_present;
 	spin_lock_irqsave(&kbdev->hwaccess_lock, irq_flags);
 	/* Set the initial value for 'shaders_avail'. It would be later
 	 * modified only from the MCU state machine, when the shader core
@@ -684,7 +685,7 @@ int kbase_hwaccess_pm_powerup(struct kbase_device *kbdev, unsigned int flags)
 #else
 	kbdev->pm.debug_core_mask_all = kbdev->pm.debug_core_mask[0] =
 		kbdev->pm.debug_core_mask[1] = kbdev->pm.debug_core_mask[2] =
-			kbdev->gpu_props.props.raw_props.shader_present;
+			kbdev->gpu_props.shader_present;
 #endif
 
 	/* Pretend the GPU is active to prevent a power policy turning the GPU
