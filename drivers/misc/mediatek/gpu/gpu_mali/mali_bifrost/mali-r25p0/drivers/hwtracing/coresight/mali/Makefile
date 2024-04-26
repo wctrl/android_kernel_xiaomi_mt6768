@@ -77,21 +77,21 @@ EXTRA_SYMBOLS += $(M)/../../../gpu/arm/midgard/Module.symvers
 
 # The following were added to align with W=1 in scripts/Makefile.extrawarn
 # from the Linux source tree
-CFLAGS_MODULE += -Wall -Werror
-CFLAGS_MODULE += -Wextra -Wunused -Wno-unused-parameter
-CFLAGS_MODULE += -Wmissing-declarations
-CFLAGS_MODULE += -Wmissing-format-attribute
-CFLAGS_MODULE += -Wmissing-prototypes
-CFLAGS_MODULE += -Wold-style-definition
-CFLAGS_MODULE += -Wmissing-include-dirs
-CFLAGS_MODULE += $(call cc-option, -Wunused-but-set-variable)
-CFLAGS_MODULE += $(call cc-option, -Wunused-const-variable)
-CFLAGS_MODULE += $(call cc-option, -Wpacked-not-aligned)
-CFLAGS_MODULE += $(call cc-option, -Wstringop-truncation)
+KBUILD_CFLAGS += -Wall -Werror
+KBUILD_CFLAGS += -Wextra -Wunused -Wno-unused-parameter
+KBUILD_CFLAGS += -Wmissing-declarations
+KBUILD_CFLAGS += -Wmissing-format-attribute
+KBUILD_CFLAGS += -Wmissing-prototypes
+KBUILD_CFLAGS += -Wold-style-definition
+KBUILD_CFLAGS += -Wmissing-include-dirs
+KBUILD_CFLAGS += $(call cc-option, -Wunused-but-set-variable)
+KBUILD_CFLAGS += $(call cc-option, -Wunused-const-variable)
+KBUILD_CFLAGS += $(call cc-option, -Wpacked-not-aligned)
+KBUILD_CFLAGS += $(call cc-option, -Wstringop-truncation)
 # The following turn off the warnings enabled by -Wextra
-CFLAGS_MODULE += -Wno-missing-field-initializers
-CFLAGS_MODULE += -Wno-sign-compare
-CFLAGS_MODULE += -Wno-type-limits
+KBUILD_CFLAGS += -Wno-missing-field-initializers
+KBUILD_CFLAGS += -Wno-sign-compare
+KBUILD_CFLAGS += -Wno-type-limits
 
 KBUILD_CPPFLAGS += -DKBUILD_EXTRA_WARN1
 
