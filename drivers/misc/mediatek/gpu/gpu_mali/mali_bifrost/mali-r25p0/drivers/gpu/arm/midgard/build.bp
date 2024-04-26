@@ -35,9 +35,6 @@ bob_defaults {
             "CONFIG_GPU_HWVER={{.hwver}}",
         ],
     },
-    mali_platform_dt_pin_rst: {
-        kbuild_options: ["CONFIG_MALI_PLATFORM_DT_PIN_RST=y"],
-    },
     gpu_has_csf: {
         kbuild_options: ["CONFIG_MALI_CSF_SUPPORT=y"],
     },
@@ -101,11 +98,11 @@ bob_defaults {
     mali_fence_debug: {
         kbuild_options: ["CONFIG_MALI_FENCE_DEBUG=y"],
     },
+    mali_fence_timeout_recovery: {
+        kbuild_options: ["CONFIG_MALI_FENCE_TIMEOUT_RECOVERY=y"],
+    },
     mali_system_trace: {
         kbuild_options: ["CONFIG_MALI_SYSTEM_TRACE=y"],
-    },
-    buslog: {
-        kbuild_options: ["CONFIG_MALI_BUSLOG=y"],
     },
     cinstr_vector_dump: {
         kbuild_options: ["CONFIG_MALI_VECTOR_DUMP=y"],
@@ -213,6 +210,7 @@ bob_kernel_module {
         "platform/*/*/*/*.h",
         "platform/*/*/*/Kbuild",
         "thirdparty/*.c",
+        "thirdparty/*.h",
         "thirdparty/Kbuild",
         "debug/*.c",
         "debug/*.h",
@@ -223,6 +221,11 @@ bob_kernel_module {
         "gpu/*.c",
         "gpu/*.h",
         "gpu/Kbuild",
+        "hw_access/*.c",
+        "hw_access/*.h",
+        "hw_access/*/*.c",
+        "hw_access/*/*.h",
+        "hw_access/Kbuild",
         "tl/*.c",
         "tl/*.h",
         "tl/Kbuild",
@@ -284,9 +287,4 @@ bob_kernel_module {
         "CONFIG_MALI_MIDGARD=m",
         "CONFIG_MALI_KUTF=n",
     ],
-    buslog: {
-        extra_symbols: [
-            "bus_logger",
-        ],
-    },
 }
