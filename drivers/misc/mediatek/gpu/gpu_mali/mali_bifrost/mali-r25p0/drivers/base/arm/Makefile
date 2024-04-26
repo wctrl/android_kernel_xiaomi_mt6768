@@ -125,6 +125,8 @@ KBUILD_CFLAGS += -Wno-sign-compare
 KBUILD_CFLAGS += -Wno-shift-negative-value
 # This flag is needed to avoid build errors on older kernels
 KBUILD_CFLAGS += $(call cc-option, -Wno-cast-function-type)
+# The following ensures the stack frame does not get larger than a page
+KBUILD_CFLAGS += -Wframe-larger-than=4096
 
 KBUILD_CPPFLAGS += -DKBUILD_EXTRA_WARN1
 
