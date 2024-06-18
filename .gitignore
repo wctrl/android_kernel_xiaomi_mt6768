@@ -126,7 +126,7 @@ all.config
 kernel/configs/android-*.cfg
 
 # AnyKernel3
-AnyKernel3/
+# AnyKernel3/
 AnyKermel/
 
 # Build
