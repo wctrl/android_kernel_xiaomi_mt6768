@@ -301,12 +301,14 @@ static ssize_t clk_enable_set(struct device *dev,
 		//update spi clk
 		if (*buf == 49)
 			mt_spi_enable_master_clk(fpc1022->spi);
+		}
 
-		if (*buf == 48)
+		if (*buf == 48) {
 			mt_spi_disable_master_clk(fpc1022->spi);
 			return 1;
-	} else
+	} else {
 		return 0;
+	}
 }
 
 static DEVICE_ATTR(clk_enable, 0200, NULL, clk_enable_set);
