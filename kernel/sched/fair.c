@@ -152,231 +152,6 @@ __read_mostly unsigned int sysctl_sched_walt_cpu_high_irqload =
     (10 * NSEC_PER_MSEC);
 #endif
 
-#ifdef CONFIG_SCHED_BORE
-uint __read_mostly sched_bore                   = 1;
-uint __read_mostly sched_burst_smoothness_long  = 1;
-uint __read_mostly sched_burst_smoothness_short = 1;
-uint __read_mostly sched_burst_fork_atavistic   = 2;
-uint __read_mostly sched_burst_penalty_offset   = 22;
-uint __read_mostly sched_burst_penalty_scale    = 1280;
-uint __read_mostly sched_burst_cache_lifetime   = 60000000;
-
-#define MAX_BURST_PENALTY (39U <<2)
-
-static inline u32 log2plus1_u64_u32f8(u64 v) {
-	u32 msb = fls64(v);
-	s32 excess_bits = msb - 9;
-    u8 fractional = (0 <= excess_bits)? v >> excess_bits: v << -excess_bits;
-	return msb << 8 | fractional;
-}
-
-static inline u32 calc_burst_penalty(u64 burst_time) {
-	u32 greed, tolerance, penalty, scaled_penalty;
-
-	greed = log2plus1_u64_u32f8(burst_time);
-	tolerance = sched_burst_penalty_offset << 8;
-	penalty = max(0, (s32)greed - (s32)tolerance);
-	scaled_penalty = penalty * sched_burst_penalty_scale >> 16;
-
-	return min(MAX_BURST_PENALTY, scaled_penalty);
-}
-
-static inline u64 scale_slice(u64 delta, struct sched_entity *se) {
-	return mul_u64_u32_shr(delta, sched_prio_to_wmult[se->burst_score], 22);
-}
-
-static void update_burst_score(struct sched_entity *se) {
-	if (!entity_is_task(se)) return;
-	struct task_struct *p = task_of(se);
-	u8 prio = p->static_prio - MAX_RT_PRIO;
-	u8 prev_prio = min(39, prio + se->burst_score);
-
-	se->burst_score = se->burst_penalty >> 2;
-
-	u8 new_prio = min(39, prio + se->burst_score);
-	if (new_prio != prev_prio)
-		reweight_task(p, new_prio);
-}
-
-static void update_burst_penalty(struct sched_entity *se) {
-	se->curr_burst_penalty = calc_burst_penalty(se->burst_time);
-	se->burst_penalty = max(se->prev_burst_penalty, se->curr_burst_penalty);
-	update_burst_score(se);
-}
-
-static inline u32 binary_smooth(u32 new, u32 old) {
-  int increment = new - old;
-  return (0 <= increment)?
-    old + ( increment >> (int)sched_burst_smoothness_long):
-    old - (-increment >> (int)sched_burst_smoothness_short);
-}
-
-static void restart_burst(struct sched_entity *se) {
-	se->burst_penalty = se->prev_burst_penalty =
-		binary_smooth(se->curr_burst_penalty, se->prev_burst_penalty);
-	se->curr_burst_penalty = 0;
-	se->burst_time = 0;
-	update_burst_score(se);
-}
-#endif // CONFIG_SCHED_BORE
-
-#ifdef CONFIG_SMP
-/*
- * For asym packing, by default the lower numbered cpu has higher priority.
- */
-int __weak arch_asym_cpu_priority(int cpu)
-{
-	return -cpu;
-}
-#endif
-
-#ifdef CONFIG_CFS_BANDWIDTH
-/*
- * Amount of runtime to allocate from global (tg) to local (per-cfs_rq) pool
- * each time a cfs_rq requests quota.
- *
- * Note: in the case that the slice exceeds the runtime remaining (either due
- * to consumption or the quota being specified to be smaller than the slice)
- * we will always only issue the remaining available time.
- *
- * (default: 5 msec, units: microseconds)
- */
-unsigned int sysctl_sched_cfs_bandwidth_slice		= 5000UL;
-#endif
-
-/*
- * The margin used when comparing utilization with CPU capacity:
- * util * margin < capacity * 1024
- *
- * (default: ~20%)
- */
-unsigned int capacity_margin				= 1280;
-
-static inline void update_load_add(struct load_weight *lw, unsigned long inc)
-{
-	lw->weight += inc;
-	lw->inv_weight = 0;
-}
-
-static inline void update_load_sub(struct load_weight *lw, unsigned long dec)
-{
-	lw->weight -= dec;
-	lw->inv_weight = 0;
-}
-
-static inline void update_load_set(struct load_weight *lw, unsigned long w)
-{
-	lw->weight = w;
-	lw->inv_weight = 0;
-}
-
-/*
- * Increase the granularity value when there are more CPUs,
- * because with more CPUs the 'effective latency' as visible
- * to users decreases. But the relationship is not linear,
- * so pick a second-best guess by going with the log2 of the
- * number of CPUs.
- *
- * This idea comes from the SD scheduler of Con Kolivas:
- */
-static unsigned int get_update_sysctl_factor(void)
-{
-	unsigned int cpus = min_t(unsigned int, num_online_cpus(), 8);
-	unsigned int factor;
-
-	switch (sysctl_sched_tunable_scaling) {
-	case SCHED_TUNABLESCALING_NONE:
-		factor = 1;
-		break;
-	case SCHED_TUNABLESCALING_LINEAR:
-		factor = cpus;
-		break;
-	case SCHED_TUNABLESCALING_LOG:
-	default:
-		factor = 1 + ilog2(cpus);
-		break;
-	}
-
-	return factor;
-}
-
-static void update_sysctl(void)
-{
-	unsigned int factor = get_update_sysctl_factor();
-
-#define SET_SYSCTL(name) \
-	(sysctl_##name = (factor) * normalized_sysctl_##name)
-	SET_SYSCTL(sched_min_granularity);
-	SET_SYSCTL(sched_latency);
-	SET_SYSCTL(sched_wakeup_granularity);
-#undef SET_SYSCTL
-}
-
-void sched_init_granularity(void)
-{
-	update_sysctl();
-}
-
-#define WMULT_CONST	(~0U)
-#define WMULT_SHIFT	32
-
-static void __update_inv_weight(struct load_weight *lw)
-{
-	unsigned long w;
-
-	if (likely(lw->inv_weight))
-		return;
-
-	w = scale_load_down(lw->weight);
-
-	if (BITS_PER_LONG > 32 && unlikely(w >= WMULT_CONST))
-		lw->inv_weight = 1;
-	else if (unlikely(!w))
-		lw->inv_weight = WMULT_CONST;
-	else
-		lw->inv_weight = WMULT_CONST / w;
-}
-
-/*
- * delta_exec * weight / lw.weight
- *   OR
- * (delta_exec * (weight * lw->inv_weight)) >> WMULT_SHIFT
- *
- * Either weight := NICE_0_LOAD and lw \e sched_prio_to_wmult[], in which case
- * we're guaranteed shift stays positive because inv_weight is guaranteed to
- * fit 32 bits, and NICE_0_LOAD gives another 10 bits; therefore shift >= 22.
- *
- * Or, weight =< lw.weight (because lw.weight is the runqueue weight), thus
- * weight/lw.weight <= 1, and therefore our shift will also be positive.
- */
-static u64 __calc_delta(u64 delta_exec, unsigned long weight, struct load_weight *lw)
-{
-	u64 fact = scale_load_down(weight);
-	int shift = WMULT_SHIFT;
-
-	__update_inv_weight(lw);
-
-	if (unlikely(fact >> 32)) {
-		while (fact >> 32) {
-			fact >>= 1;
-			shift--;
-		}
-	}
-
-	/* hint to use a 32x32->64 mul */
-	fact = (u64)(u32)fact * lw->inv_weight;
-
-	while (fact >> 32) {
-		fact >>= 1;
-		shift--;
-	}
-
-	return mul_u64_u32_shr(delta_exec, fact, shift);
-}
-
-
-const struct sched_class fair_sched_class;
-
 /**************************************************************
  * CFS operations on generic schedulable entities:
  */
@@ -598,6 +373,235 @@ find_matching_se(struct sched_entity **se, struct sched_entity **pse)
 }
 
 #endif	/* CONFIG_FAIR_GROUP_SCHED */
+
+#ifdef CONFIG_SCHED_BORE
+uint __read_mostly sched_bore                   = 1;
+uint __read_mostly sched_burst_smoothness_long  = 1;
+uint __read_mostly sched_burst_smoothness_short = 1;
+uint __read_mostly sched_burst_fork_atavistic   = 2;
+uint __read_mostly sched_burst_penalty_offset   = 22;
+uint __read_mostly sched_burst_penalty_scale    = 1280;
+uint __read_mostly sched_burst_cache_lifetime   = 60000000;
+
+#define MAX_BURST_PENALTY (39U <<2)
+
+static inline u32 log2plus1_u64_u32f8(u64 v) {
+	u32 msb = fls64(v);
+	s32 excess_bits = msb - 9;
+    u8 fractional = (0 <= excess_bits)? v >> excess_bits: v << -excess_bits;
+	return msb << 8 | fractional;
+}
+
+static inline u32 calc_burst_penalty(u64 burst_time) {
+	u32 greed, tolerance, penalty, scaled_penalty;
+
+	greed = log2plus1_u64_u32f8(burst_time);
+	tolerance = sched_burst_penalty_offset << 8;
+	penalty = max(0, (s32)greed - (s32)tolerance);
+	scaled_penalty = penalty * sched_burst_penalty_scale >> 16;
+
+	return min(MAX_BURST_PENALTY, scaled_penalty);
+}
+
+static inline u64 scale_slice(u64 delta, struct sched_entity *se) {
+	return mul_u64_u32_shr(delta, sched_prio_to_wmult[se->burst_score], 22);
+}
+
+static void update_burst_score(struct sched_entity *se) {
+	struct task_struct *p;
+	u8 prio, prev_prio, new_prio;
+
+	if (!entity_is_task(se)) return;
+
+	p = task_of(se);
+	prio = p->static_prio - MAX_RT_PRIO;
+	prev_prio = min(39, prio + se->burst_score);
+
+	se->burst_score = se->burst_penalty >> 2;
+
+	new_prio = min(39, prio + se->burst_score);
+	if (new_prio != prev_prio)
+		reweight_task(p, new_prio);
+}
+
+static void update_burst_penalty(struct sched_entity *se) {
+	se->curr_burst_penalty = calc_burst_penalty(se->burst_time);
+	se->burst_penalty = max(se->prev_burst_penalty, se->curr_burst_penalty);
+	update_burst_score(se);
+}
+
+static inline u32 binary_smooth(u32 new, u32 old) {
+  int increment = new - old;
+  return (0 <= increment)?
+    old + ( increment >> (int)sched_burst_smoothness_long):
+    old - (-increment >> (int)sched_burst_smoothness_short);
+}
+
+static void restart_burst(struct sched_entity *se) {
+	se->burst_penalty = se->prev_burst_penalty =
+		binary_smooth(se->curr_burst_penalty, se->prev_burst_penalty);
+	se->curr_burst_penalty = 0;
+	se->burst_time = 0;
+	update_burst_score(se);
+}
+#endif // CONFIG_SCHED_BORE
+
+#ifdef CONFIG_SMP
+/*
+ * For asym packing, by default the lower numbered cpu has higher priority.
+ */
+int __weak arch_asym_cpu_priority(int cpu)
+{
+	return -cpu;
+}
+#endif
+
+#ifdef CONFIG_CFS_BANDWIDTH
+/*
+ * Amount of runtime to allocate from global (tg) to local (per-cfs_rq) pool
+ * each time a cfs_rq requests quota.
+ *
+ * Note: in the case that the slice exceeds the runtime remaining (either due
+ * to consumption or the quota being specified to be smaller than the slice)
+ * we will always only issue the remaining available time.
+ *
+ * (default: 5 msec, units: microseconds)
+ */
+unsigned int sysctl_sched_cfs_bandwidth_slice		= 5000UL;
+#endif
+
+/*
+ * The margin used when comparing utilization with CPU capacity:
+ * util * margin < capacity * 1024
+ *
+ * (default: ~20%)
+ */
+unsigned int capacity_margin				= 1280;
+
+static inline void update_load_add(struct load_weight *lw, unsigned long inc)
+{
+	lw->weight += inc;
+	lw->inv_weight = 0;
+}
+
+static inline void update_load_sub(struct load_weight *lw, unsigned long dec)
+{
+	lw->weight -= dec;
+	lw->inv_weight = 0;
+}
+
+static inline void update_load_set(struct load_weight *lw, unsigned long w)
+{
+	lw->weight = w;
+	lw->inv_weight = 0;
+}
+
+/*
+ * Increase the granularity value when there are more CPUs,
+ * because with more CPUs the 'effective latency' as visible
+ * to users decreases. But the relationship is not linear,
+ * so pick a second-best guess by going with the log2 of the
+ * number of CPUs.
+ *
+ * This idea comes from the SD scheduler of Con Kolivas:
+ */
+static unsigned int get_update_sysctl_factor(void)
+{
+	unsigned int cpus = min_t(unsigned int, num_online_cpus(), 8);
+	unsigned int factor;
+
+	switch (sysctl_sched_tunable_scaling) {
+	case SCHED_TUNABLESCALING_NONE:
+		factor = 1;
+		break;
+	case SCHED_TUNABLESCALING_LINEAR:
+		factor = cpus;
+		break;
+	case SCHED_TUNABLESCALING_LOG:
+	default:
+		factor = 1 + ilog2(cpus);
+		break;
+	}
+
+	return factor;
+}
+
+static void update_sysctl(void)
+{
+	unsigned int factor = get_update_sysctl_factor();
+
+#define SET_SYSCTL(name) \
+	(sysctl_##name = (factor) * normalized_sysctl_##name)
+	SET_SYSCTL(sched_min_granularity);
+	SET_SYSCTL(sched_latency);
+	SET_SYSCTL(sched_wakeup_granularity);
+#undef SET_SYSCTL
+}
+
+void sched_init_granularity(void)
+{
+	update_sysctl();
+}
+
+#define WMULT_CONST	(~0U)
+#define WMULT_SHIFT	32
+
+static void __update_inv_weight(struct load_weight *lw)
+{
+	unsigned long w;
+
+	if (likely(lw->inv_weight))
+		return;
+
+	w = scale_load_down(lw->weight);
+
+	if (BITS_PER_LONG > 32 && unlikely(w >= WMULT_CONST))
+		lw->inv_weight = 1;
+	else if (unlikely(!w))
+		lw->inv_weight = WMULT_CONST;
+	else
+		lw->inv_weight = WMULT_CONST / w;
+}
+
+/*
+ * delta_exec * weight / lw.weight
+ *   OR
+ * (delta_exec * (weight * lw->inv_weight)) >> WMULT_SHIFT
+ *
+ * Either weight := NICE_0_LOAD and lw \e sched_prio_to_wmult[], in which case
+ * we're guaranteed shift stays positive because inv_weight is guaranteed to
+ * fit 32 bits, and NICE_0_LOAD gives another 10 bits; therefore shift >= 22.
+ *
+ * Or, weight =< lw.weight (because lw.weight is the runqueue weight), thus
+ * weight/lw.weight <= 1, and therefore our shift will also be positive.
+ */
+static u64 __calc_delta(u64 delta_exec, unsigned long weight, struct load_weight *lw)
+{
+	u64 fact = scale_load_down(weight);
+	int shift = WMULT_SHIFT;
+
+	__update_inv_weight(lw);
+
+	if (unlikely(fact >> 32)) {
+		while (fact >> 32) {
+			fact >>= 1;
+			shift--;
+		}
+	}
+
+	/* hint to use a 32x32->64 mul */
+	fact = (u64)(u32)fact * lw->inv_weight;
+
+	while (fact >> 32) {
+		fact >>= 1;
+		shift--;
+	}
+
+	return mul_u64_u32_shr(delta_exec, fact, shift);
+}
+
+
+const struct sched_class fair_sched_class;
 
 static __always_inline
 void account_cfs_rq_runtime(struct cfs_rq *cfs_rq, u64 delta_exec);
@@ -2905,6 +2909,17 @@ static void reweight_entity(struct cfs_rq *cfs_rq, struct sched_entity *se,
 
 	if (se->on_rq)
 		account_entity_enqueue(cfs_rq, se);
+}
+
+void reweight_task(struct task_struct *p, int prio)
+{
+	struct sched_entity *se = &p->se;
+	struct cfs_rq *cfs_rq = cfs_rq_of(se);
+	struct load_weight *load = &se->load;
+	unsigned long weight = scale_load(sched_prio_to_weight[prio]);
+
+	reweight_entity(cfs_rq, se, weight);
+	load->inv_weight = sched_prio_to_wmult[prio];
 }
 
 static inline int throttled_hierarchy(struct cfs_rq *cfs_rq);
