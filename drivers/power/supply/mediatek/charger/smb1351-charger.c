@@ -796,7 +796,7 @@ static int smb1351_apsd_complete_handler(struct smb1351_charger *chip,
 static int smb1351_usbin_uv_handler(struct smb1351_charger *chip, u8 status)
 {
 
-	pr_info("%s: status: %d\n", __func__, status);
+	pr_debug("%s: status: %d\n", __func__, status);
 
 	if (hvdcp_type_tmp == 1) {
 		pr_err("smb1351 hvdcp trgger uv disable hvdcp\n");
@@ -1518,7 +1518,7 @@ static irqreturn_t smb1351_chg_stat_handler(int irq, void *dev_id)
 
 	power_supply_get_property(chip->usb_psy,
 			POWER_SUPPLY_PROP_VOLTAGE_NOW, &val);
-	pr_info(" %s read vbus : %d. otg_enable:%d. \n",
+	pr_debug(" %s read vbus : %d. otg_enable:%d. \n",
 			__func__, val.intval, chip->otg_enable);
 //1409 520 064
 // 	if (val.intval < VBUS_PLUG_OUT_THRESHOLD) {

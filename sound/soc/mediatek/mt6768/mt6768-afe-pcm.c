@@ -814,7 +814,7 @@ static int mt6768_record_xrun_assert_set(struct snd_kcontrol *kcontrol,
 	struct mt6768_afe_private *afe_priv = afe->platform_priv;
 	int xrun_assert = ucontrol->value.integer.value[0];
 
-	dev_info(afe->dev, "%s(), xrun_assert %d\n", __func__, xrun_assert);
+	dev_dbg(afe->dev, "%s(), xrun_assert %d\n", __func__, xrun_assert);
 	afe_priv->xrun_assert[MT6768_RECORD_MEMIF] = xrun_assert;
 	return 0;
 }
@@ -2133,8 +2133,6 @@ static int mt6768_afe_runtime_suspend(struct device *dev)
 	unsigned int value = 0;
 	int ret;
 
-	dev_info(afe->dev, "%s()\n", __func__);
-
 	if (!afe->regmap)
 		goto skip_regmap;
 
@@ -2173,8 +2171,6 @@ static int mt6768_afe_runtime_resume(struct device *dev)
 {
 	struct mtk_base_afe *afe = dev_get_drvdata(dev);
 	int ret;
-
-	dev_info(afe->dev, "%s()\n", __func__);
 
 	ret = mt6768_afe_enable_clock(afe);
 	if (ret)

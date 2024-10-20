@@ -286,7 +286,7 @@ static void amms_freq_release(void)
 	int i, cluster_num;
 
 	cluster_num = arch_get_nr_clusters();
-	pr_info("%s:%d\n", __func__, __LINE__);
+	pr_debug("%s:%d\n", __func__, __LINE__);
 	for (i = 0; i < cluster_num; i++) {
 		amms_freq_to_set[i].min = -1;
 		amms_freq_to_set[i].max = -1;
@@ -560,8 +560,8 @@ void amms_handle_event(void)
 	amms_seq_id = mt_secure_call(MTK_SIP_KERNEL_AMMS_GET_SEQ_ID
 			, 0, 0, 0, 0);
 	pending = mt_secure_call(MTK_SIP_KERNEL_AMMS_GET_PENDING, 0, 0, 0, 0);
-	pr_info("%s:pending = 0x%llx\n", __func__, pending);
-	pr_info("%s:pending = %lld\n", __func__, (long long)pending);
+	pr_debug("%s:pending = 0x%llx\n", __func__, pending);
+	pr_debug("%s:pending = %lld\n", __func__, (long long)pending);
 
 	// Not support clear pending for legacy chip
 	if ((((long long)pending) != AMMS_PENDING_DRDI_FREE_BIT)
@@ -601,7 +601,7 @@ void amms_handle_event(void)
 			if (pfn_valid(__phys_to_pfn(addr))
 				&& pfn_valid(__phys_to_pfn(
 				addr + length - 1))) {
-				pr_info("%s:addr=%pa length=%pa\n", __func__,
+				pr_debug("%s:addr=%pa length=%pa\n", __func__,
 				&addr, &length);
 				free_reserved_memory(addr, addr+length);
 				amms_static_free = true;
