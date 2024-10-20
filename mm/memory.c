@@ -1130,6 +1130,7 @@ static int copy_pte_range(struct mm_struct *dst_mm, struct mm_struct *src_mm,
 	spinlock_t *src_ptl, *dst_ptl;
 	int progress = 0;
 	int rss[NR_MM_COUNTERS];
+	unsigned long orig_addr = addr;
 	swp_entry_t entry = (swp_entry_t){0};
 
 again:
@@ -1168,6 +1169,15 @@ again:
 	} while (dst_pte++, src_pte++, addr += PAGE_SIZE, addr != end);
 
 	arch_leave_lazy_mmu_mode();
+
+	/*
+	 * Prevent the page fault handler to copy the page while stale tlb entry
+	 * are still not flushed.
+	 */
+	if (IS_ENABLED(CONFIG_SPECULATIVE_PAGE_FAULT) &&
+	    is_cow_mapping(vma->vm_flags))
+		flush_tlb_range(vma, orig_addr, end);
+
 	spin_unlock(src_ptl);
 	pte_unmap(orig_src_pte);
 	add_mm_rss_vec(dst_mm, rss);
@@ -3776,6 +3786,10 @@ int alloc_set_pte(struct vm_fault *vmf, struct mem_cgroup *memcg,
 	entry = mk_pte(page, vmf->vma_page_prot);
 	if (write)
 		entry = maybe_mkwrite(pte_mkdirty(entry), vmf->vma_flags);
+
+	if (vmf->flags & FAULT_FLAG_PREFAULT_OLD)
+		entry = pte_mkold(entry);
+
 	/* copy-on-write page */
 	if (write && !(vmf->vma_flags & VM_SHARED)) {
 		inc_mm_counter_fast(vma->vm_mm, MM_ANONPAGES);
@@ -3834,8 +3848,16 @@ int finish_fault(struct vm_fault *vmf)
 	return ret;
 }
 
+/*
+ * If architecture emulates "accessed" or "young" bit without HW support,
+ * there is no much gain with fault_around.
+ */
 static unsigned long fault_around_bytes __read_mostly =
+#ifndef __HAVE_ARCH_PTEP_SET_ACCESS_FLAGS
+	PAGE_SIZE;
+#else
 	rounddown_pow_of_two(65536);
+#endif
 
 #ifdef CONFIG_DEBUG_FS
 static int fault_around_bytes_get(void *data, u64 *val)

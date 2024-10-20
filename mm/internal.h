@@ -188,6 +188,7 @@ extern void prep_compound_page(struct page *page, unsigned int order);
 extern void post_alloc_hook(struct page *page, unsigned int order,
 					gfp_t gfp_flags);
 extern int user_min_free_kbytes;
+extern atomic_long_t kswapd_waiters;
 
 #if defined CONFIG_COMPACTION || defined CONFIG_CMA
 
@@ -594,8 +595,17 @@ static inline bool is_migrate_highatomic_page(struct page *page)
 
 void setup_zone_pageset(struct zone *zone);
 
+
 #define IS_ZONE_MOVABLE_CMA_ZONE(z) IS_ZONE_MOVABLE_CMA_ZONE_IDX(\
 					zone_idx(z))
 ssize_t print_max_page_owner(void);
 
+#ifdef CONFIG_ANDROID_LOW_MEMORY_KILLER
+extern bool lmk_kill_possible(void);
+#else
+static inline bool lmk_kill_possible(void)
+{
+	return false;
+}
+#endif
 #endif	/* __MM_INTERNAL_H */

@@ -251,10 +251,10 @@ static int ksm_stable_node_chains_prune_millisecs = 2000;
 static int ksm_max_page_sharing = 256;
 
 /* Number of pages ksmd should scan in one batch */
-static unsigned int ksm_thread_pages_to_scan = 100;
+static unsigned int ksm_thread_pages_to_scan = 250;
 
 /* Milliseconds ksmd should sleep between batches */
-static unsigned int ksm_thread_sleep_millisecs = 20;
+static unsigned int ksm_thread_sleep_millisecs = 1500;
 
 /* Checksum of an empty (zeroed) page */
 static unsigned int zero_checksum __read_mostly;
@@ -2564,6 +2564,7 @@ void rmap_walk_ksm(struct page *page, struct rmap_walk_control *rwc)
 	stable_node = page_stable_node(page);
 	if (!stable_node)
 		return;
+
 again:
 	hlist_for_each_entry(rmap_item, &stable_node->hlist, hlist) {
 		struct anon_vma *anon_vma = rmap_item->anon_vma;
