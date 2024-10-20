@@ -152,14 +152,12 @@ static int cs35l41_dsp_power_ev(struct snd_soc_dapm_widget *w,
 {
 	struct snd_soc_codec *codec = snd_soc_dapm_to_codec(w->dapm);
 	struct cs35l41_private *cs35l41 = snd_soc_codec_get_drvdata(codec);
-	pr_debug("++V1++>CSPL: %s, event = %d.\n", __func__, event);
 	switch (event) {
 	case SND_SOC_DAPM_PRE_PMU:
 		if (cs35l41->halo_booted == false)
 			wm_halo_early_event(w, kcontrol, event);
 		else
 			cs35l41->dsp.booted = true;
-		pr_debug("--->CSPL: %s, event = %d.\n", __func__, event);
 		return 0;
 	case SND_SOC_DAPM_PRE_PMD:
 		if (cs35l41->halo_booted == false) {
@@ -1352,11 +1350,6 @@ static int cs35l41_set_dai_fmt(struct snd_soc_dai *codec_dai, unsigned int fmt)
 			snd_soc_codec_get_drvdata(codec_dai->codec);
 	unsigned int asp_fmt, lrclk_fmt, sclk_fmt, slave_mode;
 
-
-	pr_debug("++++>CSPL: %s, fmt = %d.\n", __func__, fmt);
-
-
-
 	switch (fmt & SND_SOC_DAIFMT_MASTER_MASK) {
 	case SND_SOC_DAIFMT_CBM_CFM:
 		slave_mode = 1;
@@ -1425,7 +1418,6 @@ static int cs35l41_set_dai_fmt(struct snd_soc_dai *codec_dai, unsigned int fmt)
 				CS35L41_SCLK_INV_MASK,
 				sclk_fmt << CS35L41_SCLK_INV_SHIFT);
 
-	pr_debug("---->CSPL: %s, fmt = %d.\n", __func__, fmt);
 	return 0;
 }
 
@@ -1534,15 +1526,11 @@ static int cs35l41_pcm_startup(struct snd_pcm_substream *substream,
 {
 
 	//struct snd_soc_codec *codec = dai->codec;
-	pr_debug("++++>CSPL: %s.\n", __func__);
-
 	cs35l41_set_dai_fmt(dai, SND_SOC_DAIFMT_CBS_CFS|SND_SOC_DAIFMT_I2S);
 
 	if (substream->runtime)
 		return snd_pcm_hw_constraint_list(substream->runtime, 0,
 				SNDRV_PCM_HW_PARAM_RATE, &cs35l41_constraints);
-
-	pr_debug("---->CSPL: %s.\n", __func__);
 	return 0;
 }
 

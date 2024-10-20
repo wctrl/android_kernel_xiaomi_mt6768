@@ -193,7 +193,7 @@ static int wk_bat_temp_dbg(int bat_temp_prev, int bat_temp)
 #endif
 
 	vbif28 = auxadc_priv_read_channel(pmic_auxadc_dev, AUXADC_VBIF);
-	pr_notice("BAT_TEMP_PREV:%d,BAT_TEMP:%d,VBIF28:%d\n",
+	pr_debug("BAT_TEMP_PREV:%d,BAT_TEMP:%d,VBIF28:%d\n",
 		bat_temp_prev, bat_temp, vbif28);
 	if (bat_temp < 200 || abs(bat_temp_prev - bat_temp) > 100) {
 		wk_auxadc_dbg_dump();
@@ -316,7 +316,7 @@ void mdrt_monitor(void)
 	mdrt_timestamp = mdrt_timestamp_cur;
 
 	temp_mdrt_adc = pmic_get_register_value(PMIC_AUXADC_ADC_OUT_MDRT);
-	pr_notice("[MDRT_ADC] OLD = 0x%x, NOW = 0x%x, CNT = %d\n",
+	pr_debug("[MDRT_ADC] OLD = 0x%x, NOW = 0x%x, CNT = %d\n",
 		mdrt_adc, temp_mdrt_adc, mdrt_cnt);
 
 	if (temp_mdrt_adc != mdrt_adc) {
@@ -492,7 +492,7 @@ int pmic_get_auxadc_value(int list)
 		is_charging = gauge_get_current(&bat_cur);
 		if (is_charging == 0)
 			bat_cur = 0 - bat_cur;
-		pr_notice("[CH3_DBG] bat_cur = %d\n", bat_cur);
+		pr_debug("[CH3_DBG] bat_cur = %d\n", bat_cur);
 	}
 #endif
 	if (list == AUXADC_LIST_HPOFS_CAL) {

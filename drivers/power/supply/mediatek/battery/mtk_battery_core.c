@@ -2180,8 +2180,8 @@ void fg_nafg_int_handler(void)
 	gm.hw_status.sw_car_nafg_dltv = nafg_dltv;
 	gm.hw_status.sw_car_nafg_c_dltv = nafg_c_dltv;
 
-	gm3_log_dump_nafg(0);
-	bm_err(
+	//gm3_log_dump_nafg(0);
+	bm_debug(
 		"[%s][fg_bat_nafg] [%d:%d:%d]\n",
 		__func__,
 		nafg_cnt, nafg_dltv, nafg_c_dltv);
@@ -2352,13 +2352,13 @@ void fg_drv_update_hw_status(void)
 	chr_vol = battery_get_vbus();
 	tmp = force_get_tbat(true);
 
-	bm_err("lbat %d %d %d %d\n",
+	bm_debug("lbat %d %d %d %d\n",
 		gm.sw_low_battery_ht_en,
 		gm.sw_low_battery_ht_threshold,
 		gm.sw_low_battery_lt_en,
 		gm.sw_low_battery_lt_threshold);
 
-	bm_err("car[%d,%ld,%ld,%ld,%ld, cycle_car:%d,ncar:%d] c:%d %d vbat:%d vbus:%d soc:%d %d gm3:%d %d %d %d\n",
+	bm_debug("car[%d,%ld,%ld,%ld,%ld, cycle_car:%d,ncar:%d] c:%d %d vbat:%d vbus:%d soc:%d %d gm3:%d %d %d %d\n",
 		fg_coulomb, gm.coulomb_plus.end,
 		gm.coulomb_minus.end, gm.soc_plus.end,
 		gm.soc_minus.end,
@@ -2374,7 +2374,7 @@ void fg_drv_update_hw_status(void)
 	fg_current_iavg = gauge_get_average_current(&valid);
 	fg_nafg_monitor();
 
-	bm_err("tmp:%d %d %d hcar2:%d lcar2:%d time:%d sw_iavg:%d %d %d nafg_m:%d %d %d\n",
+	bm_debug("tmp:%d %d %d hcar2:%d lcar2:%d time:%d sw_iavg:%d %d %d nafg_m:%d %d %d\n",
 		tmp, gm.fg_bat_tmp_int_ht, gm.fg_bat_tmp_int_lt,
 		gm.fg_bat_int2_ht, gm.fg_bat_int2_lt,
 		fg_get_system_sec(), gm.sw_iavg, fg_current_iavg, valid,
@@ -2384,8 +2384,8 @@ void fg_drv_update_hw_status(void)
 		gauge_dev_dump(gm.gdev, NULL, 0);
 	cnt++;
 
-	gm3_log_dump(false);
-	gm3_log_dump_nafg(1);
+	//gm3_log_dump(false);
+	//gm3_log_dump_nafg(1);
 
 	wakeup_fg_algo_cmd(
 		FG_INTR_KERNEL_CMD,
@@ -3121,7 +3121,7 @@ void bmd_ctrl_cmd_from_user(void *nl_data, struct fgd_nl_msg_t *ret_msg)
 		gm.log.phone_state = 1;
 		gm.log.ps_logtime = fg_get_log_sec();
 		gm.log.ps_system_time = fg_get_system_sec();
-		gm3_log_dump(true);
+		//gm3_log_dump(true);
 
 	}
 	break;
@@ -4022,7 +4022,7 @@ void bmd_ctrl_cmd_from_user(void *nl_data, struct fgd_nl_msg_t *ret_msg)
 
 		memcpy(&_soc, &msg->fgd_data[0], sizeof(_soc));
 		gauge_dev_set_info(gm.gdev, GAUGE_CON0_SOC, _soc);
-		bm_err("[fg_res] FG_DAEMON_CMD_SET_CON0_SOC = %d\n", _soc);
+		bm_debug("[fg_res] FG_DAEMON_CMD_SET_CON0_SOC = %d\n", _soc);
 	}
 	break;
 
@@ -4329,8 +4329,8 @@ void gm3_log_notify(unsigned int interrupt)
 		break;
 	}
 
-	if (interrupt != FG_INTR_KERNEL_CMD)
-		gm3_log_dump(true);
+	/*if (interrupt != FG_INTR_KERNEL_CMD)
+		gm3_log_dump(true);*/
 }
 
 

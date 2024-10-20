@@ -283,7 +283,7 @@ done:
 	if (ret != -ENOTSUPP && pdata->input_current_limit < aicr1_min)
 		pdata->input_current_limit = 0;
 
-	chr_err("force:%d thermal:%d,%d pe4:%d,%d,%d setting:%d %d sc:%d,%d,%d type:%d usb_unlimited:%d usbif:%d usbsm:%d aicl:%d atm:%d\n",
+	chr_debug("force:%d thermal:%d,%d pe4:%d,%d,%d setting:%d %d sc:%d,%d,%d type:%d usb_unlimited:%d usbif:%d usbsm:%d aicl:%d atm:%d\n",
 		_uA_to_mA(pdata->force_charging_current),
 		_uA_to_mA(pdata->thermal_input_current_limit),
 		_uA_to_mA(pdata->thermal_charging_current_limit),
@@ -531,7 +531,7 @@ static int select_pe40_charging_current_limit(struct charger_manager *info)
 	if (ret != -ENOTSUPP && pdata->input_current_limit < aicr1_min)
 		pdata->input_current_limit = 0;
 
-	chr_err("force:%d thermal:%d,%d setting:%d %d sc:%d %d %d type:%d usb_unlimited:%d usbif:%d usbsm:%d aicl:%d atm:%d\n",
+	chr_debug("force:%d thermal:%d,%d setting:%d %d sc:%d %d %d type:%d usb_unlimited:%d usbif:%d usbsm:%d aicl:%d atm:%d\n",
 		_uA_to_mA(pdata->force_charging_current),
 		_uA_to_mA(pdata->thermal_input_current_limit),
 		_uA_to_mA(pdata->thermal_charging_current_limit),
@@ -658,7 +658,7 @@ static int select_pdc_charging_current_limit(struct charger_manager *info)
 	if (ret != -ENOTSUPP && pdata->input_current_limit < aicr1_min)
 		pdata->input_current_limit = 0;
 
-	chr_err("force:%d thermal:%d,%d setting:%d %d sc:%d %d %d type:%d usb_unlimited:%d usbif:%d usbsm:%d aicl:%d atm:%d\n",
+	chr_debug("force:%d thermal:%d,%d setting:%d %d sc:%d %d %d type:%d usb_unlimited:%d usbif:%d usbsm:%d aicl:%d atm:%d\n",
 		_uA_to_mA(pdata->force_charging_current),
 		_uA_to_mA(pdata->thermal_input_current_limit),
 		_uA_to_mA(pdata->thermal_charging_current_limit),
@@ -766,7 +766,7 @@ static int mtk_switch_chr_cc(struct charger_manager *info)
 
 	swchgalg->total_charging_time = charging_time.tv_sec;
 
-	chr_err("pe40_ready:%d pps:%d hv:%d thermal:%d,%d tmp:%d,%d,%d\n",
+	chr_debug("pe40_ready:%d pps:%d hv:%d thermal:%d,%d tmp:%d,%d,%d\n",
 		info->enable_pe_4,
 		pe40_is_ready(),
 		info->enable_hv_charging,

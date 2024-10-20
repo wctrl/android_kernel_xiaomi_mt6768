@@ -799,7 +799,7 @@ INT32 wmt_func_wifi_on(P_WMT_IC_OPS pOps, P_WMT_GEN_CONF pConf)
 			WMT_ERR_FUNC("WMT-FUNC: wmt call wlan probe fail(%d)\n", iRet);
 			iRet = -1;
 		} else {
-			WMT_WARN_FUNC("WMT-FUNC: wmt call wlan probe ok\n");
+			WMT_DBG_FUNC("WMT-FUNC: wmt call wlan probe ok\n");
 		}
 	} else {
 		WMT_ERR_FUNC("WMT-FUNC: null pointer mtk_wcn_wlan_probe\n");

@@ -695,7 +695,7 @@ static int smb_chip_get_version(struct smb1351_charger *chip)
 		else
 			chip->version = SMB1351;
 //	}
-	pr_err("###%s, i2c_addr:0x%02x, version:%d\n", __func__, chip->client->addr, chip->version);
+	pr_debug("###%s, i2c_addr:0x%02x, version:%d\n", __func__, chip->client->addr, chip->version);
 
 	return rc;
 }
@@ -742,7 +742,7 @@ static int smb1351_psy_chg_type_changed(struct smb1351_charger *chip, bool force
 
 static int smb1351_set_usbsw_state(struct smb1351_charger *chip, int state)
 {
-	pr_info("%s: state = %s\n", __func__, state ? "usb" : "chg");
+	pr_debug("%s: state = %s\n", __func__, state ? "usb" : "chg");
 
 	/* Switch D+D- to AP/SMB1351 */
 	if (state == USBSW_CHG)
@@ -757,7 +757,7 @@ static int rerun_apsd(struct smb1351_charger *chip)
 {
 	int rc;
 
-	pr_err("Reruning APSD\n");
+	pr_debug("Reruning APSD\n");
 
 	rc = smb1351_enable_volatile_writes(chip);
 	if (rc)
@@ -784,7 +784,7 @@ static int smb1351_apsd_complete_handler(struct smb1351_charger *chip,
 		jiffies_to_msecs(sub_time);
 		if (sub_time < USBIN_COLLAPSE_TIME) {
 			_smb1351_enable_hvdcp_det(chip, false);
-			pr_err("222f_time:%lu; s_time:%lu; sub:%lu sub_time:%d\n", f_vbusin_uv_time, s_vbusin_uv_time, (s_vbusin_uv_time - f_vbusin_uv_time), sub_time);
+			pr_debug("222f_time:%lu; s_time:%lu; sub:%lu sub_time:%d\n", f_vbusin_uv_time, s_vbusin_uv_time, (s_vbusin_uv_time - f_vbusin_uv_time), sub_time);
 		}
 	}
 //	pr_err("f_time:%lu; s_time:%lu; sub:%lu\n",f_vbusin_uv_time ,s_vbusin_uv_time ,(s_vbusin_uv_time - f_vbusin_uv_time));
@@ -796,7 +796,7 @@ static int smb1351_apsd_complete_handler(struct smb1351_charger *chip,
 static int smb1351_usbin_uv_handler(struct smb1351_charger *chip, u8 status)
 {
 
-	pr_info("%s: status: %d\n", __func__, status);
+	pr_debug("%s: status: %d\n", __func__, status);
 
 	if (hvdcp_type_tmp == 1) {
 		pr_err("smb1351 hvdcp trgger uv disable hvdcp\n");
@@ -1518,7 +1518,7 @@ static irqreturn_t smb1351_chg_stat_handler(int irq, void *dev_id)
 
 	power_supply_get_property(chip->usb_psy,
 			POWER_SUPPLY_PROP_VOLTAGE_NOW, &val);
-	pr_info(" %s read vbus : %d. otg_enable:%d. \n",
+	pr_debug(" %s read vbus : %d. otg_enable:%d. \n",
 			__func__, val.intval, chip->otg_enable);
 //1409 520 064
 // 	if (val.intval < VBUS_PLUG_OUT_THRESHOLD) {
@@ -1777,7 +1777,7 @@ void dump_regs(struct smb1351_charger *chip)
 		if (rc)
 			pr_err("Couldn't read 0x%02x rc = %d\n", addr, rc);
 		else
-			pr_err("0x%02x = 0x%02x\n", addr, reg);
+			pr_debug("0x%02x = 0x%02x\n", addr, reg);
 	}
 
 	for (addr = FIRST_STATUS_REG; addr <= LAST_STATUS_REG; addr++) {
@@ -1785,7 +1785,7 @@ void dump_regs(struct smb1351_charger *chip)
 		if (rc)
 			pr_err("Couldn't read 0x%02x rc = %d\n", addr, rc);
 		else
-			pr_err("0x%02x = 0x%02x\n", addr, reg);
+			pr_debug("0x%02x = 0x%02x\n", addr, reg);
 	}
 
 	for (addr = FIRST_CMD_REG; addr <= LAST_CMD_REG; addr++) {
@@ -1793,7 +1793,7 @@ void dump_regs(struct smb1351_charger *chip)
 		if (rc)
 			pr_err("Couldn't read 0x%02x rc = %d\n", addr, rc);
 		else
-			pr_err("0x%02x = 0x%02x\n", addr, reg);
+			pr_debug("0x%02x = 0x%02x\n", addr, reg);
 	}
 
 	for (addr = IRQ_A_REG; addr <= IRQ_H_REG; addr++) {
@@ -1801,7 +1801,7 @@ void dump_regs(struct smb1351_charger *chip)
 		if (rc)
 			pr_err("Couldn't read 0x%02x rc = %d\n", addr, rc);
 		else
-			pr_err("0x%02x = 0x%02x\n", addr, reg);
+			pr_debug("0x%02x = 0x%02x\n", addr, reg);
 	}
 }
 
@@ -2061,7 +2061,7 @@ static int smb1351_enable_charging(struct charger_device *chg_dev, bool en)
 	u8 reg = 0, mask = 0;
 	struct smb1351_charger *chip = dev_get_drvdata(&chg_dev->dev);
 
-	pr_err("smb1351 enable status = %d\n", en);
+	pr_debug("smb1351 enable status = %d\n", en);
 	// if (!chip->chip_enable && en) {
 	// 	pr_err("chip is not enable, return.\n");
 	// 	return 0;
@@ -2115,7 +2115,7 @@ static int smb1351_is_charging_done(struct charger_device *chg_dev, bool *done)
 	struct smb1351_charger *chip = dev_get_drvdata(&chg_dev->dev);
 
 	*done = chip->batt_full;
-	pr_err("charging is %s\n", chip->batt_full ? "done" : "not done");
+	pr_debug("charging is %s\n", chip->batt_full ? "done" : "not done");
 	return 0;
 }
 
@@ -2281,7 +2281,7 @@ static int smb1351_set_usbchg_current(struct charger_device *chg_dev, u32 uA)
 	u8 reg = 0, mask = 0;
 	u32 current_ma = uA / 1000;
 
-	pr_err("USB current_ma = %d\n", current_ma);
+	pr_debug("USB current_ma = %d\n", current_ma);
 
 	if (chip->chg_autonomous_mode) {
 		pr_debug("Charger in autonomous mode\n");
@@ -2379,7 +2379,7 @@ static int smb1351_set_fastchg_current(struct charger_device *chg_dev, u32 uA)
 
 	chip->chg_current_set = uA / 1000;
 
-	pr_err("fastchg current mA=%d \n", chip->chg_current_set);
+	pr_debug("fastchg current mA=%d \n", chip->chg_current_set);
 
 	if ((chip->chg_current_set < SMB1351_CHG_PRE_MIN_MA) ||
 		(chip->chg_current_set > SMB1351_CHG_FAST_MAX_MA)) {
@@ -2455,7 +2455,7 @@ static int smb1351_set_fastchg_current(struct charger_device *chg_dev, u32 uA)
 static int smb1351_get_min_ichg(struct charger_device *chg_dev, u32 *uA)
 {
 	*uA = pre_chg_current[2] * 1000;
-	pr_info("get min ichg: %d \n", *uA);
+	pr_debug("get min ichg: %d \n", *uA);
 	return 0;
 }
 
@@ -2760,7 +2760,7 @@ static int smb1351_set_float_voltage(struct charger_device *chg_dev, u32 uV)
 		uV = float_max;
 	}
 
-	pr_err("set float voltage %d cycle_count : %d", uV, cycle_count);
+	pr_debug("set float voltage %d cycle_count : %d", uV, cycle_count);
 
 	rc = smb1351_enable_volatile_writes(chip);
 	if (rc) {
@@ -2779,7 +2779,7 @@ static int smb1351_enable_chg_type_det(struct charger_device *chg_dev, bool en)
 	u8 reg, mask = 0;
 	const int max_wait_cnt = 200;
 
-	pr_info("%s: en = %d\n", __func__, en);
+	pr_debug("%s: en = %d\n", __func__, en);
 	/*set smb_susp pin high*/
     if (gpio_is_valid(chip->suspend_gpio))
 		gpio_direction_output(chip->suspend_gpio, 1);
@@ -2813,9 +2813,9 @@ static int smb1351_enable_chg_type_det(struct charger_device *chg_dev, bool en)
 	for (i = 0; i < max_wait_cnt; i++) {
 		if (is_usb_rdy())
 			break;
-		pr_info("%s: CDP block\n", __func__);
+		pr_debug("%s: CDP block\n", __func__);
 		if (!chip->tcpc_attach) {
-			pr_info("%s: plug out", __func__);
+			pr_debug("%s: plug out", __func__);
 			goto out;
 		}
 		msleep(100);
@@ -2823,7 +2823,7 @@ static int smb1351_enable_chg_type_det(struct charger_device *chg_dev, bool en)
 	if (i == max_wait_cnt)
 		pr_err("%s: CDP timeout\n", __func__);
 	else
-		pr_info("%s: CDP free\n", __func__);
+		pr_debug("%s: CDP free\n", __func__);
 
 	smb1351_set_usbsw_state(chip, USBSW_CHG);
 	msleep(30);
@@ -2868,7 +2868,7 @@ static int smb1351_enable_chg_type_det(struct charger_device *chg_dev, bool en)
 out:
 	mutex_unlock(&chip->chgdet_lock);
 	schedule_delayed_work(&chip->check_type_work, msecs_to_jiffies(5000));
-	pr_info("%s: out.\n", __func__);
+	pr_debug("%s: out.\n", __func__);
 	if (en)
 		dump_regs(chip);
 	return ret;
@@ -3010,7 +3010,7 @@ static void smb1351_delay_init_work(struct work_struct *work)
 	rc = smb1351_masked_write(chip, HVDCP_BATT_MISSING_CTRL_REG,
 			HVDCP_ADAPTER_SEL_MASK, 0x40);
 	rerun_apsd(chip);
-	pr_err("dhx---fix qc 2.0\n");
+	pr_debug("dhx---fix qc 2.0\n");
 /*set QC2.0 9V*/
 	smb1351_init_charger_input_range(chip);
 	chip->resume_completed = true;

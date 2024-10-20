@@ -310,7 +310,7 @@ EXPORT_SYMBOL_GPL(mtk_dma_contig_clear_max_seg_size);
 void mtk_dma_contig_set_secure_mode(struct device *dev, int secure_mode)
 {
 	mtk_secure_mode = secure_mode;
-	dprintk(CRITICAL, "Set secure mode : %d\n", secure_mode);
+	pr_debug("Set secure mode : %d\n", secure_mode);
 }
 EXPORT_SYMBOL_GPL(mtk_dma_contig_set_secure_mode);
 

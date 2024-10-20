@@ -227,7 +227,7 @@ static int test_cc_patch(struct wusb3801_chip *chip)
 	msleep(10);
 	wusb3801_i2c_write8(chip->tcpc,
 			WUSB3801_REG_TEST_02, 0x00);
-	pr_err("dhx---add msleep 200\n");
+	pr_debug("dhx---add msleep 200\n");
 	dev_err(cdev, "%s rc = [0x%02x] \n", __func__, rc);
 	ret = wusb3801_i2c_read8(chip->tcpc, WUSB3801_REG_TEST_02);
 	if (ret & WUSB3801_FORCE_ERR_RCY_MASK) {
@@ -542,7 +542,7 @@ static int wusb3801_tcpc_get_mode(struct tcpc_device *tcpc, int *typec_mode)
 		*typec_mode = 0;
 		break;
 	}
-	pr_err("%s: wusb3801 type[0x%02x]\n", __func__, type);
+	pr_debug("%s: wusb3801 type[0x%02x]\n", __func__, type);
 
 	return 0;
 }

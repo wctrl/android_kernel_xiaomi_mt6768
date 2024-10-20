@@ -529,7 +529,7 @@ static void connlog_ring_emi_to_cache(struct connlog_dev* handler)
 		#ifndef DEBUG_LOG_ON
 			if (__ratelimit(&_rs2))
 		#endif
-				pr_info("%s: ring_emi_seg.sz=%d, ring_cache_pt=%p, ring_cache_seg.sz=%d\n",
+				pr_debug("%s: ring_emi_seg.sz=%d, ring_cache_pt=%p, ring_cache_seg.sz=%d\n",
 					type_to_title[handler->conn_type], ring_emi_seg.sz, ring_cache_seg.ring_pt,
 					ring_cache_seg.sz);
 			memcpy_fromio(ring_cache_seg.ring_pt, ring_emi_seg.ring_emi_pt + ring_cache_seg.data_pos,

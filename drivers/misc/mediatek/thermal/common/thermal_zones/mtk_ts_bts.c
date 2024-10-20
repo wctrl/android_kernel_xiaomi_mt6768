@@ -724,14 +724,14 @@ int mtkts_bts_get_hw_temp(void)
 		t_ret2 = wakeup_ta_algo(TA_CATMPLUS_TTJ);
 
 		if (t_ret2 < 0)
-			pr_notice("[Thermal/TZ/BTS]wakeup_ta_algo %d\n",
+			pr_debug("[Thermal/TZ/BTS]wakeup_ta_algo %d\n",
 				t_ret2);
 	}
 
 	bts_cur_temp = t_ret;
 
 	if (t_ret > 40000)	/* abnormal high temp */
-		mtkts_bts_printk("T_AP=%d\n", t_ret);
+		mtkts_bts_dprintk("T_AP=%d\n", t_ret);
 
 	mtkts_bts_dprintk("[%s] T_AP, %d\n", __func__, t_ret);
 	return t_ret;

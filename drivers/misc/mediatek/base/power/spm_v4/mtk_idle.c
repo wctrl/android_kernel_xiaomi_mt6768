@@ -1161,7 +1161,7 @@ int mtk_idle_select_base_on_menu_gov(int cpu, int menu_select_state)
 	if (menu_select_state < 0)
 		return menu_select_state;
 
-	mtk_idle_dump_cnt_in_interval();
+	//mtk_idle_dump_cnt_in_interval();
 
 	i = mtk_idle_select(cpu);
 
@@ -1358,7 +1358,7 @@ int rgidle_enter(int cpu)
 {
 	int ret = CPUIDLE_STATE_RG;
 
-	mtk_idle_dump_cnt_in_interval();
+	//mtk_idle_dump_cnt_in_interval();
 #if !defined(SPM_K414_EARLY_PORTING)
 	mcdi_heart_beat_log_dump();
 #endif

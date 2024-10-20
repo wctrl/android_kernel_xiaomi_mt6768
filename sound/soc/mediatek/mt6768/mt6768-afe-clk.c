@@ -233,8 +233,6 @@ int mt6768_afe_enable_clock(struct mtk_base_afe *afe)
 {
 	struct mt6768_afe_private *afe_priv = afe->platform_priv;
 	int ret = 0;
-
-	dev_info(afe->dev, "%s()\n", __func__);
 #ifdef SCP_USAGE
 	ret = clk_prepare_enable(afe_priv->clk[CLK_SCP_SYS_AUD]);
 	if (ret) {
@@ -315,8 +313,6 @@ CLK_SCP_SYS_AUD_ERR:
 void mt6768_afe_disable_clock(struct mtk_base_afe *afe)
 {
 	struct mt6768_afe_private *afe_priv = afe->platform_priv;
-
-	dev_info(afe->dev, "%s()\n", __func__);
 
 	clk_disable_unprepare(afe_priv->clk[CLK_AFE]);
 

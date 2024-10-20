@@ -177,7 +177,7 @@ static void pn544_disable_irq(struct pn544_dev *pn544_dev)
 static int pn544_dev_release(struct inode *inode, struct file *filp)
 {
 	g_pn544_dev->state_flags = 0x00;
-	pr_info(KERN_ALERT "Exit %s: NFC driver release  nfc hal  \n",
+	pr_debug("Exit %s: NFC driver release  nfc hal  \n",
 		__func__);
 	return 0;
 }
@@ -329,7 +329,7 @@ static ssize_t pn544_dev_write(struct file *filp, const char __user *buf, size_t
 
 static void p61_update_access_state(struct pn544_dev *pn544_dev, p61_access_state_t current_state, bool set)
 {
-	pr_info("%s: Enter current_state = %x\n", __func__,
+	pr_debug("%s: Enter current_state = %x\n", __func__,
 		pn544_dev->p61_current_state);
 	if (current_state) {
 		if (set) {
@@ -343,7 +343,7 @@ static void p61_update_access_state(struct pn544_dev *pn544_dev, p61_access_stat
 				pn544_dev->p61_current_state = P61_STATE_IDLE;
 		}
 	}
-	pr_info("%s: Exit current_state = %x\n", __func__,
+	pr_debug("%s: Exit current_state = %x\n", __func__,
 		pn544_dev->p61_current_state);
 }
 
@@ -362,16 +362,16 @@ static void p61_get_access_state(struct pn544_dev *pn544_dev, p61_access_state_t
 
 static void p61_access_lock(struct pn544_dev *pn544_dev)
 {
-	pr_info("%s: Enter  pn544 dev is %x,\n", __func__, pn544_dev);
-	pr_info("%s: Enter  pn544 dev state mutex  is %s,\n", __func__,
+	pr_debug("%s: Enter  pn544 dev is %x,\n", __func__, pn544_dev);
+	pr_debug("%s: Enter  pn544 dev state mutex  is %s,\n", __func__,
 		&pn544_dev->p61_state_mutex);
 	mutex_lock(&pn544_dev->p61_state_mutex);
-	pr_info("%s: Exit\n", __func__);
+	pr_debug("%s: Exit\n", __func__);
 }
 
 static void p61_access_unlock(struct pn544_dev *pn544_dev)
 {
-	pr_info("%s: Enter\n", __func__);
+	pr_debug("%s: Enter\n", __func__);
 	mutex_unlock(&pn544_dev->p61_state_mutex);
 }
 
@@ -548,7 +548,7 @@ static int set_nfc_pid(unsigned long arg)
 long pn544_dev_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 {
 	struct pn544_dev *pn544_dev = g_pn544_dev;
-	pr_info("%s :enter cmd = %u, arg = %ld\n", __func__, cmd, arg);
+	pr_debug("%s :enter cmd = %u, arg = %ld\n", __func__, cmd, arg);
 	//pn544_dev = filp->private_data;
 	if (NULL == pn544_dev)
 		return 0;
@@ -647,7 +647,7 @@ long pn544_dev_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 #endif
 			} else if (arg == 0) {
 				/* power off */
-				pr_info("%s power off\n", __func__);
+				pr_debug("%s power off\n", __func__);
 				if (pn544_dev->firm_gpio) {
 					if ((current_state &
 					     (P61_STATE_WIRED | P61_STATE_SPI |
@@ -1306,7 +1306,7 @@ long pn544_dev_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		return -EINVAL;
 	}
 	p61_access_unlock(pn544_dev);
-	pr_info("%s :exit cmd = %u, arg = %ld\n", __func__, cmd, arg);
+	pr_debug("%s :exit cmd = %u, arg = %ld\n", __func__, cmd, arg);
 	return 0;
 }
 

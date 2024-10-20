@@ -207,7 +207,7 @@ static void _mtk_rtc_set_alarm(struct rtc_time *tm)
 	data[RTC_OFFSET_YEAR] = ((data_b[RTC_OFFSET_YEAR] & ~(RTC_AL_YEA_MASK))
 				| (tm->tm_year & RTC_AL_YEA_MASK));
 
-	dev_notice(mt_rtc->dev, "set al time = %04d/%02d/%02d %02d:%02d:%02d\n",
+	dev_debug(mt_rtc->dev, "set al time = %04d/%02d/%02d %02d:%02d:%02d\n",
 		   tm->tm_year + RTC_MIN_YEAR, tm->tm_mon, tm->tm_mday,
 		   tm->tm_hour, tm->tm_min, tm->tm_sec);
 
@@ -812,7 +812,7 @@ static int mtk_rtc_set_alarm(struct device *dev, struct rtc_wkalrm *alm)
 	data[RTC_OFFSET_YEAR] = ((data[RTC_OFFSET_YEAR] & ~(RTC_AL_YEA_MASK)) |
 				(tm->tm_year & RTC_AL_YEA_MASK));
 
-	dev_notice(rtc->dev,
+	dev_debug(rtc->dev,
 		   "set al time = %04d/%02d/%02d %02d:%02d:%02d (%d)\n",
 		   tm->tm_year + RTC_MIN_YEAR, tm->tm_mon, tm->tm_mday,
 		   tm->tm_hour, tm->tm_min, tm->tm_sec, alm->enabled);

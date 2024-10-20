@@ -146,7 +146,7 @@ u16 hal_rtc_get_spare_register(enum rtc_spare_enum cmd)
 		    (tmp_val >> rtc_spare_reg[cmd][RTC_SHIFT]) &
 		    rtc_spare_reg[cmd][RTC_MASK];
 
-		hal_rtc_xinfo("%s: cmd[%d], get rg[0x%x, 0x%x , %d] = 0x%x\n",
+		hal_rtc_xdebug("%s: cmd[%d], get rg[0x%x, 0x%x , %d] = 0x%x\n",
 				__func__, cmd,
 				rtc_spare_reg[cmd][RTC_REG],
 				rtc_spare_reg[cmd][RTC_MASK],

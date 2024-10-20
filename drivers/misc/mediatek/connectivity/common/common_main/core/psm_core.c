@@ -42,7 +42,7 @@ do { \
 #define STP_PSM_PR_DBG(fmt, arg...) \
 do { \
 	if (gPsmDbgLevel >= STP_PSM_LOG_DBG) \
-		pr_info(PFX_PSM "%s: "  fmt, __func__, ##arg); \
+		pr_debug(PFX_PSM "%s: "  fmt, __func__, ##arg); \
 } while (0)
 #define STP_PSM_PR_INFO(fmt, arg...) \
 do { \
@@ -1360,7 +1360,7 @@ static inline INT32 _stp_psm_do_wait(MTKSTP_PSM_T *stp_psm, MTKSTP_PSM_STATE_T s
 	while (_stp_psm_get_state(stp_psm) != state && i < limit && mtk_wcn_stp_is_enable()) {
 		i++;
 		if (i < 3)
-			STP_PSM_PR_INFO("STP is waiting state for %s, i=%d, state = %d\n",
+			STP_PSM_PR_DBG("STP is waiting state for %s, i=%d, state = %d\n",
 					  g_psm_state[state], i, _stp_psm_get_state(stp_psm));
 		osal_sleep_ms(POLL_WAIT);
 		if (i == 10) {
@@ -1380,7 +1380,7 @@ static inline INT32 _stp_psm_do_wait(MTKSTP_PSM_T *stp_psm, MTKSTP_PSM_STATE_T s
 		return STP_PSM_OPERATION_FAIL;
 	}
 	if (i > 0)
-		STP_PSM_PR_INFO("+Total waits for %s takes %llu usec\n",
+		STP_PSM_PR_DBG("+Total waits for %s takes %llu usec\n",
 					g_psm_state[state], osal_elapsed_us(sec, usec));
 	return STP_PSM_OPERATION_SUCCESS;
 }
@@ -1610,14 +1610,14 @@ INT32 stp_psm_disable_by_tx_rx_density(MTKSTP_PSM_T *stp_psm, INT32 dir, INT32 l
 		 */
 		if (((tv_now.tv_sec == tv_end.tv_sec) && (tv_now.tv_usec > tv_end.tv_usec)) ||
 		    (tv_now.tv_sec > tv_end.tv_sec)) {
-			STP_PSM_PR_INFO("STP speed rx:%d tx:%d\n", rx_sum_len, tx_sum_len);
+			STP_PSM_PR_DBG("STP speed rx:%d tx:%d\n", rx_sum_len, tx_sum_len);
 			if ((rx_sum_len + tx_sum_len) > RTX_SPEED_THRESHOLD) {
-				STP_PSM_PR_INFO("High speed,Disable monitor\n");
+				STP_PSM_PR_DBG("High speed,Disable monitor\n");
 				osal_set_bit(STP_PSM_WMT_EVENT_DISABLE_MONITOR_TX_HIGH_DENSITY, &stp_psm->flag);
 				stp_psm->idle_time_to_sleep = STP_PSM_IDLE_TIME_SLEEP_1000;
 				stp_psm_start_monitor(stp_psm);
 			} else {
-				STP_PSM_PR_INFO("Low speed,Enable monitor\n");
+				STP_PSM_PR_DBG("Low speed,Enable monitor\n");
 				stp_psm->idle_time_to_sleep = STP_PSM_IDLE_TIME_SLEEP;
 				osal_clear_bit(STP_PSM_WMT_EVENT_DISABLE_MONITOR_TX_HIGH_DENSITY, &stp_psm->flag);
 			}

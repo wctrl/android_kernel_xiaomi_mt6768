@@ -265,10 +265,10 @@ unsigned int __spm_output_wake_reason(
 	WARN_ON(log_size >= 768);
 
 	if (!suspend)
-		pr_info("[SPM] %s", log_buf);
+		pr_debug("[SPM] %s", log_buf);
 	else {
 		aee_sram_printk("%s", log_buf);
-		pr_info("[SPM] %s", log_buf);
+		pr_debug("[SPM] %s", log_buf);
 	}
 
 	return wr;

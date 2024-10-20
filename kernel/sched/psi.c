@@ -542,7 +542,7 @@ static u64 update_triggers(struct psi_group *group, u64 now)
 
 		/* Generate an event */
 		if (cmpxchg(&t->event, 0, 1) == 0) {
-			pr_info("%s: group:%p t:%p triggered!\n",
+			pr_debug("%s: group:%p t:%p triggered!\n",
 				__func__, group, t);
 			wake_up_interruptible(&t->event_wait);
 		}
@@ -1179,7 +1179,7 @@ unsigned int psi_trigger_poll(void **trigger_ptr, struct file *file,
 	poll_wait(file, &t->event_wait, wait);
 
 	if (cmpxchg(&t->event, 1, 0) == 1) {
-		pr_info("%s: t:%p triggered!\n",
+		pr_debug("%s: t:%p triggered!\n",
 			__func__, t);
 		ret |= POLLPRI;
 	}
