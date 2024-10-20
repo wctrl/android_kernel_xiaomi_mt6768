@@ -245,10 +245,10 @@ unsigned int do_jeita_state_machine(void)
 
 			jeita_status = PMU_STATUS_FAIL;
 		} else {
-			battery_log(
+			/*battery_log(
 				BAT_LOG_CRTI,
 				"[BATTERY] Battery Temperature between %d and %d !!\n\r",
-				TEMP_POS_45_THRESHOLD, TEMP_POS_60_THRESHOLD);
+				TEMP_POS_45_THRESHOLD, TEMP_POS_60_THRESHOLD);*/
 
 			g_temp_status = TEMP_POS_45_TO_POS_60;
 		}
@@ -263,10 +263,10 @@ unsigned int do_jeita_state_machine(void)
 				BAT_LOG_CRTI,
 				"[BATTERY] Battery Temperature not recovery to normal temperature charging mode yet!!\n\r");
 		} else {
-			battery_log(
+			/*battery_log(
 				BAT_LOG_CRTI,
 				"[BATTERY] Battery Normal Temperature between %d and %d !!\n\r",
-				TEMP_POS_10_THRESHOLD, TEMP_POS_45_THRESHOLD);
+				TEMP_POS_10_THRESHOLD, TEMP_POS_45_THRESHOLD);*/
 			g_temp_status = TEMP_POS_10_TO_POS_45;
 		}
 	} else if (BMT_status.temperature >= TEMP_POS_0_THRESHOLD) {

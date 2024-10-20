@@ -880,7 +880,7 @@ int mmc_blk_cmdq_switch(struct mmc_card *card, int enable)
 
 	card->ext_csd.cmdq_en = enable;
 
-	pr_notice("%s: device cq %s\n",
+	pr_debug("%s: device cq %s\n",
 		mmc_hostname(host),
 		card->ext_csd.cmdq_en ? "on":"off");
 

@@ -471,7 +471,7 @@ static int mtk_rtc_set_pwron_alarm_time(struct rtc_time *tm)
 	u16 data[RTC_OFFSET_COUNT];
 	int ret, i;
 
-	pr_err("%s\n", __func__);
+	pr_debug("%s\n", __func__);
 
 	data[RTC_OFFSET_SEC] =
 		((tm->tm_sec << RTC_PWRON_SEC_SHIFT) & RTC_PWRON_SEC_MASK);
@@ -963,7 +963,7 @@ static int rtc_ops_read_alarm(struct device *dev, struct rtc_wkalrm *alm)
 	tm->tm_year += RTC_MIN_YEAR_OFFSET;
 	tm->tm_mon--;
 
-	pr_notice("read al time = %04d/%02d/%02d %02d:%02d:%02d (%d)\n",
+	pr_debug("read al time = %04d/%02d/%02d %02d:%02d:%02d (%d)\n",
 		  tm->tm_year + RTC_BASE_YEAR, tm->tm_mon + 1, tm->tm_mday,
 		  tm->tm_hour, tm->tm_min, tm->tm_sec, alm->enabled);
 
@@ -1003,7 +1003,7 @@ static int rtc_ops_set_alarm(struct device *dev, struct rtc_wkalrm *alm)
 	tm.tm_year -= RTC_MIN_YEAR_OFFSET;
 	tm.tm_mon++;
 
-	pr_notice("set al time = %04d/%02d/%02d %02d:%02d:%02d (%d)\n",
+	pr_debug("set al time = %04d/%02d/%02d %02d:%02d:%02d (%d)\n",
 		  tm.tm_year + RTC_MIN_YEAR, tm.tm_mon, tm.tm_mday,
 		  tm.tm_hour, tm.tm_min, tm.tm_sec, alm->enabled);
 

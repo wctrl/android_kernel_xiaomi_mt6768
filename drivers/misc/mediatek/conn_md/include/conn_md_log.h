@@ -86,12 +86,16 @@ do {\
 		__func__, __LINE__, ## arg);\
 } while (0)
 
+#if defined (DEBUG)
 #define CONN_MD_DBG_FUNC(fmt, arg ...) \
 do { \
 	if (__conn_md_get_log_lvl() >= CONN_MD_LOG_DBG) \
 		__conn_md_log_print(DFT_TAG "[D]%s:"  fmt, \
 		__func__, ## arg); \
 } while (0)
+#else
+#define CONN_MD_DBG_FUNC(fmt, arg ...)
+#endif
 
 #define CONN_MD_TRC_FUNC(f) \
 do { \

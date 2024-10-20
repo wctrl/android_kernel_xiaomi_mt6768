@@ -47,7 +47,7 @@ MODULE_LICENSE("Dual BSD/GPL");
 #define WIFI_LOG_WARN                 1
 #define WIFI_LOG_ERR                  0
 
-uint32_t gDbgLevel = WIFI_LOG_DBG;
+uint32_t gDbgLevel = WIFI_LOG_INFO;
 
 #define WIFI_DBG_FUNC(fmt, arg...)	\
 	do { \
@@ -309,7 +309,7 @@ int32_t wifi_reset_end(enum ENUM_RESET_STATUS status)
 				WIFI_ERR_FUNC("WMT turn on WIFI fail!\n");
 				goto done;
 			} else {
-				WIFI_INFO_FUNC("WMT turn on WIFI success!\n");
+				WIFI_DBG_FUNC("WMT turn on WIFI success!\n");
 			}
 
 			if (pf_set_p2p_mode == NULL) {
@@ -477,7 +477,7 @@ ssize_t WIFI_write(struct file *filp, const char __user *buf, size_t count, loff
 			} else {
 				powered = 1;
 				retval = count;
-				WIFI_INFO_FUNC("WMT turn on WIFI success!\n");
+				WIFI_DBG_FUNC("WMT turn on WIFI success!\n");
 				wlan_mode = WLAN_MODE_HALT;
 			}
 		} else if (!strncmp(local, "WR-BUF:", 7)) {
@@ -550,7 +550,7 @@ ssize_t WIFI_write(struct file *filp, const char __user *buf, size_t count, loff
 					goto done;
 				} else {
 					powered = 1;
-					WIFI_INFO_FUNC("WMT turn on WIFI success!\n");
+					WIFI_DBG_FUNC("WMT turn on WIFI success!\n");
 					wlan_mode = WLAN_MODE_HALT;
 				}
 			}

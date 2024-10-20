@@ -169,14 +169,14 @@ void reverse_charger(bool en)
 	struct tcpc_device *tcpc = tcpc_dev_get_by_name("type_c_port0");
 
 	primary_charger = get_charger_by_name("primary_chg");
-	pr_err("dhx---is otg : %d\n", is_otg);
+	pr_debug("dhx---is otg : %d\n", is_otg);
 	if (en) {
 		reverse_flage = 1;
 		charger_dev_enable_otg(primary_charger, false);
 		msleep(1000);
 		pinctrl_select_state(reverse_pinctrl, reverse_enable);
 		gpio_state = gpio_get_value(reverse_gpio);
-		pr_err("dhx-- short DM/DM gpio: %d\n", gpio_state);
+		pr_debug("dhx-- short DM/DM gpio: %d\n", gpio_state);
 		dpdm_disshort = 1;
 		msleep(1000);
 		if (is_otg == 1)
@@ -188,7 +188,7 @@ void reverse_charger(bool en)
 		pinctrl_select_state(reverse_pinctrl, reverse_disable);
 		dpdm_disshort = 0;
 		gpio_state = gpio_get_value(reverse_gpio);
-		pr_err("dhx-- dis short DM/DM gpio: %d\n", gpio_state);
+		pr_debug("dhx-- dis short DM/DM gpio: %d\n", gpio_state);
 		charger_dev_enable_otg(primary_charger, false);
 		tcpc->ops->set_role(tcpc, REVERSE_CHG_DRP);
 		// if (is_otg == 1){
@@ -374,7 +374,7 @@ static int mt_usb_get_property(struct power_supply *psy,
 		val->intval = typec_cc_orientation;
 		break;
 	case POWER_SUPPLY_PROP_REAL_TYPE:
-		pr_err("dhx--hvdcp:%d\n", hvdcp_type_tmp);
+		pr_debug("dhx--hvdcp:%d\n", hvdcp_type_tmp);
 		if (hvdcp_type_tmp == HVDCP_3) {
 			val->intval = POWER_SUPPLY_TYPE_USB_HVDCP_3;
 			break;
@@ -752,7 +752,7 @@ static int mt_charger_probe(struct platform_device *pdev)
 	}
 
 	reverse_gpio = of_get_named_gpio(pdev->dev.of_node, "reverse-gpio", 0);
-	pr_err("dhx--rever gpio: %d\n", reverse_gpio);
+	pr_debug("dhx--rever gpio: %d\n", reverse_gpio);
 #endif
 	mt_chg->chg_desc.name = "charger";
 	mt_chg->chg_desc.type = POWER_SUPPLY_TYPE_UNKNOWN;

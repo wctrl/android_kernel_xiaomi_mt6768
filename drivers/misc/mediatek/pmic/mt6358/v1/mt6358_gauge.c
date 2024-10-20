@@ -679,7 +679,7 @@ void iavg_check(struct gauge_device *gauge_dev,
 	else
 		*iavg_less = false;
 
-	bm_err(
+	bm_debug(
 		"[%s] iavg:%lld cic2:%d offset:%d 0x%x 0x%x %d %d\r\n",
 		__func__,
 		fg_iavg_ma,
@@ -3182,7 +3182,7 @@ static void fgauge_dump_type0(struct seq_file *m)
 
 	vbif28 = pmic_get_auxadc_value(AUXADC_LIST_VBIF);
 
-	bm_err("[fg_bat_plugout_int_handler]Dig %d %d %d 0x%x 0x%x\n",
+	bm_debug("[fg_bat_plugout_int_handler]Dig %d %d %d 0x%x 0x%x\n",
 		pmic_get_register_value(PMIC_AD_BATON_UNDET_RAW),
 		pmic_get_register_value(PMIC_BATON_STATUS),
 		pmic_get_register_value(PMIC_BATON_DEB_VALID),
@@ -3190,7 +3190,7 @@ static void fgauge_dump_type0(struct seq_file *m)
 		pmic_get_register_value(PMIC_RG_BATON_DEBOUNCE_WND)
 	);
 
-	bm_err("[fg_bat_plugout_int_handler]Ana %d %d %d %d %d %d %d bif:%d\n",
+	bm_debug("[fg_bat_plugout_int_handler]Ana %d %d %d %d %d %d %d bif:%d\n",
 		pmic_get_register_value(PMIC_AD_BATON_UNDET_RAW),
 		pmic_get_register_value(PMIC_AD_BATON_UNDET),
 		pmic_get_register_value(PMIC_DA_VBIF28_EN),

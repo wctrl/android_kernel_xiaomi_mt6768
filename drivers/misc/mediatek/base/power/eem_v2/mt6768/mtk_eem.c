@@ -3839,7 +3839,7 @@ static int eem_suspend(void)
 	unsigned long flag;
 
 	if (ctrl_EEM_Enable) {
-		eem_error("Start EEM suspend\n");
+		eem_debug("Start EEM suspend\n");
 		mt_ptp_lock(&flag);
 		for_each_det(det) {
 			det->ops->switch_bank(det, NR_EEM_PHASE);
@@ -3856,7 +3856,7 @@ static int eem_suspend(void)
 static int eem_resume(void)
 {
 	if (ctrl_EEM_Enable) {
-		eem_error("Start EEM resume\n");
+		eem_debug("Start EEM resume\n");
 		/* Reset EEM */
 		eem_write(INFRA_EEM_RST, 1);
 		eem_write(INFRA_EEM_CLR, 1);

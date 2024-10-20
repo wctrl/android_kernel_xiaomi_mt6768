@@ -4437,7 +4437,7 @@ static int msdc_ops_get_cd(struct mmc_host *mmc)
  end:
 	/* enable msdc register dump */
 	sd_register_zone[host->id] = 1;
-	INIT_MSG(
+	INFO_MSG(
 	"Card insert<%d> Block bad card<%d>, mrq<%p> claimed<%d> pwrcnt<%d> trigger card event<%d>",
 		host->card_inserted,
 		host->block_bad_card,

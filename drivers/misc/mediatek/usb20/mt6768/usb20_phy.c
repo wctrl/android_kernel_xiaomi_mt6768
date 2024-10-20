@@ -133,7 +133,7 @@ void usb_phy_tuning(void)
 				VAL_MAX_WIDTH_2 << SHFT_RG_USB20_PHY_REV6);
 		USBPHY_SET32(OFFSET_RG_USB20_PHY_REV6,
 				HOST_ENHANCE<<SHFT_RG_USB20_PHY_REV6);
-		pr_err("dhx---is host\n");
+		pr_debug("dhx---is host\n");
 	} else {
 		USBPHY_CLR32(OFFSET_RG_USB20_VRT_VREF_SEL,
 				VAL_MAX_WIDTH_3 << SHFT_RG_USB20_VRT_VREF_SEL);
@@ -149,7 +149,7 @@ void usb_phy_tuning(void)
 				VAL_MAX_WIDTH_2 << SHFT_RG_USB20_PHY_REV6);
 		USBPHY_SET32(OFFSET_RG_USB20_PHY_REV6,
 				DEVICE_ENHANCE<<SHFT_RG_USB20_PHY_REV6);
-		pr_err("dhx---is device\n");
+		pr_debug("dhx---is device\n");
 	}
 }
 

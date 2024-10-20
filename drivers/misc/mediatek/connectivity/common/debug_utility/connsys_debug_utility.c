@@ -304,7 +304,7 @@ static void connlog_ring_emi_to_cache(int conn_type)
 			ring_dump_segment(__func__, &ring_cache_seg);
 #endif
 			if (__ratelimit(&_rs2))
-				pr_info("%s: ring_emi_seg.sz=%d, ring_cache_pt=%p, ring_cache_seg.sz=%d\n",
+				pr_debug("%s: ring_emi_seg.sz=%d, ring_cache_pt=%p, ring_cache_seg.sz=%d\n",
 					type_to_title[conn_type], ring_emi_seg.sz, ring_cache_seg.ring_pt,
 					ring_cache_seg.sz);
 			memcpy_fromio(ring_cache_seg.ring_pt, ring_emi_seg.ring_emi_pt + ring_cache_seg.data_pos,
@@ -733,13 +733,13 @@ static void connlog_log_data_handler(struct work_struct *work)
 				/* ret++; */
 			} else {
 				if (__ratelimit(&_rs))
-					pr_info("[connlog] %s emi ring is empty!!\n", type_to_title[i]);
+					pr_debug("[connlog] %s emi ring is empty!!\n", type_to_title[i]);
 			}
 		}
 	} while (ret);
 
 	if (__ratelimit(&_rs2))
-		pr_info("[connlog] irq counter=%d module=0x%04x\n",
+		pr_debug("[connlog] irq counter=%d module=0x%04x\n",
 			EMI_READ32(gDev.virAddrEmiLogBase + CONNLOG_IRQ_COUNTER_BASE), module);
 	spin_lock_irqsave(&gDev.irq_lock, gDev.flags);
 	if (gDev.eirqOn)

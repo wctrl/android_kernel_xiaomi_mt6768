@@ -39,11 +39,15 @@
 static int debug_mask = ANDROID_ALARM_PRINT_INFO;
 module_param_named(debug_mask, debug_mask, int, 0664);
 
+#if defined(DEBUG)
 #define alarm_dbg(debug_level_mask, fmt, args...) \
 do {									\
 	if (debug_mask & ANDROID_ALARM_PRINT_##debug_level_mask)	\
 		pr_debug(LOG_MYTAG fmt, ##args); \
 } while (0)
+#else
+#define alarm_dbg(debug_level_mask, fmt, args...)
+#endif
 
 #define ANDROID_ALARM_WAKEUP_MASK ( \
 	ANDROID_ALARM_RTC_WAKEUP_MASK | \

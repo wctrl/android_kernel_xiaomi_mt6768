@@ -45,8 +45,12 @@
 	printk_deferred(IDLE_PROF_TAG fmt, ##args)
 #define idle_prof_ver(fmt, args...)     \
 	printk_deferred(IDLE_PROF_TAG fmt, ##args)
+#if defined(DEBUG)
 #define idle_prof_dbg(fmt, args...)     \
 	printk_deferred(IDLE_PROF_TAG fmt, ##args)
+#else
+#define idle_prof_dbg(fmt, args...)((void)0);
+#endif
 
 #define LATENCY_PROF_TAG		"[name:spm&]Power/latency_profile "
 #define latency_prof_crit(fmt, args...) \
@@ -442,7 +446,7 @@ void mtk_idle_dump_cnt_in_interval(void)
 
 	/* dump log */
 	#if !defined(CONFIG_MACH_MT6739)
-	idle_prof_warn("%s\n", get_log());
+	idle_prof_dbg("%s\n", get_log());
 	#endif
 
 	/* dump idle ratio */
@@ -462,7 +466,7 @@ void mtk_idle_dump_cnt_in_interval(void)
 		}
 		append_log("--- (ms)\n");
 		#if !defined(CONFIG_MACH_MT6739)
-		idle_prof_warn("%s\n", get_log());
+		idle_prof_dbg("%s\n", get_log());
 		#endif
 		idle_ratio_profile_start_time = idle_get_current_time_ms();
 	}

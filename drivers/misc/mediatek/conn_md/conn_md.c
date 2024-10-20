@@ -82,7 +82,7 @@ static void conn_md_log_print_msg(struct conn_md_time_struct *cur_time)
 			&g_log_msg_info.msg_begin_time, cur_time);
 		if ((g_log_msg_info.msg_total == CONN_MD_MSG_MAX_NUM ||
 		    interval > CONN_MD_LOG_MSG_MAX_INTERVAL_MS)) {
-			CONN_MD_INFO_FUNC("%s%s\n", CONN_MD_LOG_MSG_HEAD_NAME,
+			CONN_MD_DBG_FUNC("%s%s\n", CONN_MD_LOG_MSG_HEAD_NAME,
 					  g_log_msg_info.msg_buf);
 			g_log_msg_info.msg_buf[0] = '\0';
 			g_log_msg_info.msg_total = 0;

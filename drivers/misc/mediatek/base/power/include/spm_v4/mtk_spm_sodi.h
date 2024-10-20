@@ -48,6 +48,7 @@ extern unsigned int	soidle_profile[4];
 		else						\
 			printk_deferred(SODI_TAG fmt, ##args);	\
 	} while (0)
+#if defined(DEBUG)
 #define so_debug(fg, fmt, args...)				\
 	do {							\
 		if (fg&SODI_FLAG_3P0)				\
@@ -55,6 +56,9 @@ extern unsigned int	soidle_profile[4];
 		else						\
 			printk_deferred(SODI_TAG fmt, ##args);	\
 	} while (0)
+#else
+#define so_debug(fg, fmt, args...)(void(0))
+#endif
 
 #if defined(CONFIG_MACH_MT6763) || defined(CONFIG_MACH_MT6739)
 #define SUPPORT_SW_SET_SPM_MEMEPLL_MODE
